@@ -1,1 +1,221 @@
-﻿<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#174d3c"><title>سَعي | رفيقك الدراسي</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="./styles.css"></head><body><aside class="sidebar"><a class="brand" href="#home"><b>س</b><span>سَعي<small>رفيقك الدراسي</small></span></a><nav><button class="nav-item active" data-view="home">⌂ <span>الرئيسية</span></button><button class="nav-item" data-view="subjects">▦ <span>المواد</span></button><button class="nav-item" data-view="tasks">✓ <span>المهام</span></button><button class="nav-item" data-view="stats">◔ <span>الإحصائيات</span></button></nav><div class="sidebar-note"><span>✦</span><strong>كل درس يقرّبك</strong><small>خطوة هادئة اليوم تصنع فرقًا غدًا.</small></div></aside><div class="app"><header class="topbar"><div><p id="today-date"></p><h1 id="page-title">مرحبًا، طالب السَعي 👋</h1></div><div class="top-actions"><button class="round-button" aria-label="الإشعارات">♧</button><button class="avatar" aria-label="ملف الطالب">ط</button></div></header><main><section id="home-view" class="view active"><section class="hero"><div><p class="eyebrow">رحلتك اليوم</p><h2>واصل التقدّم، أنت على الطريق الصحيح.</h2><p id="hero-copy">كل مهمة صغيرة تنجزها اليوم تقرّبك من هدفك.</p><button class="light-button" data-open="task">+ أضف مهمة اليوم</button></div><div class="hero-progress"><span id="all-progress">0%</span><small>التقدم الكلي</small></div></section><section class="quick-grid"><article class="quick-card"><span>◷</span><div><small>وقت الدراسة اليوم</small><strong id="study-time">٠ د</strong></div></article><article class="quick-card"><span>✓</span><div><small>مهام اليوم</small><strong id="tasks-count">٠</strong></div></article><article class="quick-card"><span>♨</span><div><small>سلسلة الدراسة</small><strong>١ يوم</strong></div></article><article class="quick-card"><span>▤</span><div><small>المواد النشطة</small><strong id="subjects-count">٠</strong></div></article></section><section class="dashboard-grid"><article class="panel today-panel"><div class="section-head"><div><p class="eyebrow dark">اليوم</p><h2>مهامي</h2></div><button class="text-button" data-open="task">إضافة مهمة</button></div><ul id="tasks" class="list"></ul><p class="empty" id="no-tasks">يومك خالٍ من المهام. ابدأ بخطوة صغيرة.</p></article><article class="panel"><div class="section-head"><div><p class="eyebrow dark">تابع من حيث توقفت</p><h2>أقرب درس</h2></div><button class="text-button" data-view="subjects">عرض المواد</button></div><div id="next-lesson" class="next-lesson"></div></article></section><section class="section-head materials-head"><div><p class="eyebrow dark">ملخص سريع</p><h2>موادك</h2></div><button class="primary" data-open="subject">+ إضافة مادة</button></section><section id="home-subjects" class="subject-grid compact"></section></section><section id="subjects-view" class="view"><div class="section-head page-head"><div><p class="eyebrow dark">مسارك الدراسي</p><h2>المواد</h2><p>تابع خطتك وأنجز بالوتيرة التي تناسبك.</p></div><button class="primary" data-open="subject">+ إضافة مادة</button></div><section id="subjects" class="subject-grid"></section><p class="empty" id="no-subjects">أضف أول مادة لتبني خطتك الدراسية.</p></section><section id="tasks-view" class="view"><div class="section-head page-head"><div><p class="eyebrow dark">تنظيم اليوم</p><h2>المهام</h2><p>رتّب ما تريد إنجازه، ثم أنجزه بهدوء.</p></div><button class="primary" data-open="task">+ إضافة مهمة</button></div><article class="panel task-page"><ul id="tasks-full" class="list"></ul><p class="empty" id="no-tasks-full">لا توجد مهام مضافة بعد.</p></article></section><section id="stats-view" class="view"><div class="section-head page-head"><div><p class="eyebrow dark">نظرة على تقدّمك</p><h2>الإحصائيات</h2></div></div><section class="stats-grid"><article class="panel stat-large"><span id="stats-progress">0%</span><p>نسبة الإنجاز الكلية</p></article><article class="panel stat-large"><span id="stats-completed">٠</span><p>دروس مكتملة</p></article><article class="panel stat-large"><span id="stats-remaining">٠</span><p>دروس متبقية</p></article></section></section></main></div><nav class="bottom-nav"><button class="nav-item active" data-view="home">⌂<span>الرئيسية</span></button><button class="nav-item" data-view="subjects">▦<span>المواد</span></button><button class="add-fab" data-open="subject" aria-label="إضافة مادة">+</button><button class="nav-item" data-view="tasks">✓<span>المهام</span></button><button class="nav-item" data-view="stats">◔<span>الإحصائيات</span></button></nav><dialog id="subject-modal"><form id="subject-form"><div class="modal-head"><div><p class="eyebrow dark">خطتك الجديدة</p><h2>إضافة مادة</h2></div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button></div><div class="subject-symbol">▱</div><label>اسم المادة<input name="name" required maxlength="50" placeholder="مثال: الكيمياء"></label><div class="form-grid"><label>إجمالي الدروس<input name="totalLessons" type="number" min="1" max="10000" required placeholder="51"></label><label>عدد الفصول <small>اختياري</small><input name="chapterCount" type="number" min="0" max="1000" placeholder="5"></label></div><label>أريد إنهاءها خلال (يوم)<input name="durationDays" type="number" min="1" max="3650" placeholder="20"></label><p id="daily-goal-preview" class="plan-preview">أدخل إجمالي الدروس والمدة ليظهر هدفك اليومي.</p><label>لون البطاقة<input type="hidden" name="color" value="green"><div class="color-palette" role="group" aria-label="اختيار لون المادة"><button type="button" class="color-swatch selected" data-select-color="green" aria-label="أخضر"></button><button type="button" class="color-swatch" data-select-color="teal" aria-label="تركوازي"></button><button type="button" class="color-swatch" data-select-color="blue" aria-label="أزرق"></button><button type="button" class="color-swatch" data-select-color="sky" aria-label="سماوي"></button><button type="button" class="color-swatch" data-select-color="purple" aria-label="بنفسجي"></button><button type="button" class="color-swatch" data-select-color="pink" aria-label="وردي"></button><button type="button" class="color-swatch" data-select-color="rose" aria-label="وردي داكن"></button><button type="button" class="color-swatch" data-select-color="orange" aria-label="برتقالي"></button><button type="button" class="color-swatch" data-select-color="amber" aria-label="أصفر ذهبي"></button><button type="button" class="color-swatch" data-select-color="red" aria-label="أحمر"></button></div></label><button class="primary wide">حفظ المادة</button></form></dialog><dialog id="task-modal"><form id="task-form"><div class="modal-head"><div><p class="eyebrow dark">تنظيم يومك</p><h2>إضافة مهمة</h2></div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button></div><label>اسم المهمة<input name="name" required maxlength="80" placeholder="مثال: مراجعة محاضرة الكيمياء"></label><div class="form-grid"><label>المادة<select name="subject" id="task-subject"><option value="">بدون مادة</option></select></label><label>الفصل<input name="chapter" maxlength="60" placeholder="اختياري"></label></div><div class="form-grid"><label>التاريخ<input name="date" type="date"></label><label>الوقت المتوقع<input name="duration" type="number" min="1" placeholder="دقائق"></label></div><label>الأولوية<select name="priority"><option value="متوسطة">متوسطة</option><option value="عالية">عالية</option><option value="منخفضة">منخفضة</option></select></label><button class="primary wide">إضافة المهمة</button></form></dialog><dialog id="chapter-modal"><form id="chapter-form"><div class="modal-head"><h2>فصل جديد</h2><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button></div><input type="hidden" name="subjectId"><label>اسم الفصل<input name="name" required maxlength="60" placeholder="مثال: الفصل الأول"></label><button class="primary wide">إضافة الفصل</button></form></dialog><dialog id="lesson-modal"><form id="lesson-form"><div class="modal-head"><h2>درس أو محاضرة</h2><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button></div><input type="hidden" name="subjectId"><input type="hidden" name="chapterId"><label>اسم الدرس<input name="name" required maxlength="80" placeholder="مثال: المحاضرة الأولى"></label><label class="check-label"><input type="checkbox" name="today"> ضمن دروس اليوم</label><button class="primary wide">إضافة الدرس</button></form></dialog><dialog id="subject-detail"><div class="detail-head"><div><p class="eyebrow dark">تفاصيل المادة</p><h2 id="detail-name"></h2></div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button></div><div id="detail-content"></div></dialog><script type="module" src="./app.js"></script></body></html>
+﻿<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#174d3c">
+    <title>سَعي | رفيقك الدراسي</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+    <aside class="sidebar"><a class="brand" href="#home"><b>س</b><span>سَعي<small>رفيقك الدراسي</small></span></a>
+        <nav><button class="nav-item active" data-view="home">⌂ <span>الرئيسية</span></button><button class="nav-item"
+                data-view="subjects">▦ <span>المواد</span></button><button class="nav-item" data-view="tasks">✓
+                <span>المهام</span></button><button class="nav-item" data-view="stats">◔
+                <span>الإحصائيات</span></button></nav>
+        <div class="sidebar-note"><span>✦</span><strong>كل درس يقرّبك</strong><small>خطوة هادئة اليوم تصنع فرقًا
+                غدًا.</small></div>
+    </aside>
+    <div class="app">
+        <header class="topbar">
+            <div>
+                <p id="today-date"></p>
+                <h1 id="page-title">مرحبًا، طالب السَعي 👋</h1>
+            </div>
+            <div class="top-actions"><button class="round-button" aria-label="الإشعارات">♧</button><button
+                    class="avatar" aria-label="ملف الطالب">ط</button></div>
+        </header>
+        <main>
+            <section id="home-view" class="view active">
+                <section class="hero">
+                    <div>
+                        <p class="eyebrow">رحلتك اليوم</p>
+                        <h2>واصل التقدّم، أنت على الطريق الصحيح.</h2>
+                        <p id="hero-copy">كل مهمة صغيرة تنجزها اليوم تقرّبك من هدفك.</p><button class="light-button"
+                            data-open="task">+ أضف مهمة اليوم</button>
+                    </div>
+                    <div class="hero-progress"><span id="all-progress">0%</span><small>التقدم الكلي</small></div>
+                </section>
+                <section class="quick-grid">
+                    <article class="quick-card"><span>◷</span>
+                        <div><small>وقت الدراسة اليوم</small><strong id="study-time">٠ د</strong></div>
+                    </article>
+                    <article class="quick-card"><span>✓</span>
+                        <div><small>مهام اليوم</small><strong id="tasks-count">٠</strong></div>
+                    </article>
+                    <article class="quick-card"><span>♨</span>
+                        <div><small>سلسلة الدراسة</small><strong>١ يوم</strong></div>
+                    </article>
+                    <article class="quick-card"><span>▤</span>
+                        <div><small>المواد النشطة</small><strong id="subjects-count">٠</strong></div>
+                    </article>
+                </section>
+                <section class="dashboard-grid">
+                    <article class="panel today-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow dark">اليوم</p>
+                                <h2>مهامي</h2>
+                            </div><button class="text-button" data-open="task">إضافة مهمة</button>
+                        </div>
+                        <ul id="tasks" class="list"></ul>
+                        <p class="empty" id="no-tasks">يومك خالٍ من المهام. ابدأ بخطوة صغيرة.</p>
+                    </article>
+                    <article class="panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow dark">تابع من حيث توقفت</p>
+                                <h2>أقرب درس</h2>
+                            </div><button class="text-button" data-view="subjects">عرض المواد</button>
+                        </div>
+                        <div id="next-lesson" class="next-lesson"></div>
+                    </article>
+                </section>
+                <section class="section-head materials-head">
+                    <div>
+                        <p class="eyebrow dark">ملخص سريع</p>
+                        <h2>موادك</h2>
+                    </div><button class="primary" data-open="subject">+ إضافة مادة</button>
+                </section>
+                <section id="home-subjects" class="subject-grid compact"></section>
+            </section>
+            <section id="subjects-view" class="view">
+                <div class="section-head page-head">
+                    <div>
+                        <p class="eyebrow dark">مسارك الدراسي</p>
+                        <h2>المواد</h2>
+                        <p>تابع خطتك وأنجز بالوتيرة التي تناسبك.</p>
+                    </div><button class="primary" data-open="subject">+ إضافة مادة</button>
+                </div>
+                <section id="subjects" class="subject-grid"></section>
+                <p class="empty" id="no-subjects">أضف أول مادة لتبني خطتك الدراسية.</p>
+            </section>
+            <section id="tasks-view" class="view">
+                <div class="section-head page-head">
+                    <div>
+                        <p class="eyebrow dark">تنظيم اليوم</p>
+                        <h2>المهام</h2>
+                        <p>رتّب ما تريد إنجازه، ثم أنجزه بهدوء.</p>
+                    </div><button class="primary" data-open="task">+ إضافة مهمة</button>
+                </div>
+                <article class="panel task-page">
+                    <ul id="tasks-full" class="list"></ul>
+                    <p class="empty" id="no-tasks-full">لا توجد مهام مضافة بعد.</p>
+                </article>
+            </section>
+            <section id="stats-view" class="view">
+                <div class="section-head page-head">
+                    <div>
+                        <p class="eyebrow dark">نظرة على تقدّمك</p>
+                        <h2>الإحصائيات</h2>
+                    </div>
+                </div>
+                <section class="stats-grid">
+                    <article class="panel stat-large"><span id="stats-progress">0%</span>
+                        <p>نسبة الإنجاز الكلية</p>
+                    </article>
+                    <article class="panel stat-large"><span id="stats-completed">٠</span>
+                        <p>دروس مكتملة</p>
+                    </article>
+                    <article class="panel stat-large"><span id="stats-remaining">٠</span>
+                        <p>دروس متبقية</p>
+                    </article>
+                </section>
+            </section>
+        </main>
+    </div>
+    <nav class="bottom-nav"><button class="nav-item active" data-view="home">⌂<span>الرئيسية</span></button><button
+            class="nav-item" data-view="subjects">▦<span>المواد</span></button><button class="add-fab"
+            data-open="subject" aria-label="إضافة مادة">+</button><button class="nav-item"
+            data-view="tasks">✓<span>المهام</span></button><button class="nav-item"
+            data-view="stats">◔<span>الإحصائيات</span></button></nav>
+    <dialog id="subject-modal">
+        <form id="subject-form">
+            <div class="modal-head">
+                <div>
+                    <p class="eyebrow dark">خطتك الجديدة</p>
+                    <h2>إضافة مادة</h2>
+                <button type="button" class="close" data-close-modal aria-label="إغلاق" onclick="this.closest('dialog').close()">×</button>
+            <div class="subject-symbol">▱</div><label>اسم المادة<input name="name" required maxlength="50"
+                    placeholder="مثال: الكيمياء"></label>
+            <div class="form-grid"><label>إجمالي الدروس<input name="totalLessons" type="number" min="1" max="10000"
+                        required placeholder="51"></label><label>عدد الفصول <small>اختياري</small><input
+                        name="chapterCount" type="number" min="0" max="1000" placeholder="5"></label></div><label>أريد
+                إنهاءها خلال (يوم)<input name="durationDays" type="number" min="1" max="3650" placeholder="20"></label>
+            <p id="daily-goal-preview" class="plan-preview">أدخل إجمالي الدروس والمدة ليظهر هدفك اليومي.</p><label>لون
+                البطاقة<input type="hidden" name="color" value="green">
+                <div class="color-palette" role="group" aria-label="اختيار لون المادة"><button type="button"
+                        class="color-swatch selected" data-select-color="green" aria-label="أخضر"></button><button
+                        type="button" class="color-swatch" data-select-color="teal"
+                        aria-label="تركوازي"></button><button type="button" class="color-swatch"
+                        data-select-color="blue" aria-label="أزرق"></button><button type="button" class="color-swatch"
+                        data-select-color="sky" aria-label="سماوي"></button><button type="button" class="color-swatch"
+                        data-select-color="purple" aria-label="بنفسجي"></button><button type="button"
+                        class="color-swatch" data-select-color="pink" aria-label="وردي"></button><button type="button"
+                        class="color-swatch" data-select-color="rose" aria-label="وردي داكن"></button><button
+                        type="button" class="color-swatch" data-select-color="orange"
+                        aria-label="برتقالي"></button><button type="button" class="color-swatch"
+                        data-select-color="amber" aria-label="أصفر ذهبي"></button><button type="button"
+                        class="color-swatch" data-select-color="red" aria-label="أحمر"></button></div>
+            </label><button class="primary wide">حفظ المادة</button>
+        </form>
+    </dialog>
+    <dialog id="task-modal">
+        <form id="task-form">
+            <div class="modal-head">
+                <div>
+                    <p class="eyebrow dark">تنظيم يومك</p>
+                    <h2>إضافة مهمة</h2>
+                </div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+            </div><label>اسم المهمة<input name="name" required maxlength="80"
+                    placeholder="مثال: مراجعة محاضرة الكيمياء"></label>
+            <div class="form-grid"><label>المادة<select name="subject" id="task-subject">
+                        <option value="">بدون مادة</option>
+                    </select></label><label>الفصل<input name="chapter" maxlength="60" placeholder="اختياري"></label>
+            </div>
+            <div class="form-grid"><label>التاريخ<input name="date" type="date"></label><label>الوقت المتوقع<input
+                        name="duration" type="number" min="1" placeholder="دقائق"></label></div><label>الأولوية<select
+                    name="priority">
+                    <option value="متوسطة">متوسطة</option>
+                    <option value="عالية">عالية</option>
+                    <option value="منخفضة">منخفضة</option>
+                </select></label><button class="primary wide">إضافة المهمة</button>
+        </form>
+    </dialog>
+    <dialog id="chapter-modal">
+        <form id="chapter-form">
+            <div class="modal-head">
+                <h2>فصل جديد</h2><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+            </div><input type="hidden" name="subjectId"><label>اسم الفصل<input name="name" required maxlength="60"
+                    placeholder="مثال: الفصل الأول"></label><button class="primary wide">إضافة الفصل</button>
+        </form>
+    </dialog>
+    <dialog id="lesson-modal">
+        <form id="lesson-form">
+            <div class="modal-head">
+                <h2>درس أو محاضرة</h2><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+            </div><input type="hidden" name="subjectId"><input type="hidden" name="chapterId"><label>اسم الدرس<input
+                    name="name" required maxlength="80" placeholder="مثال: المحاضرة الأولى"></label><label
+                class="check-label"><input type="checkbox" name="today"> ضمن دروس اليوم</label><button
+                class="primary wide">إضافة الدرس</button>
+        </form>
+    </dialog>
+    <dialog id="subject-detail">
+        <div class="detail-head">
+            <div>
+                <p class="eyebrow dark">تفاصيل المادة</p>
+                <h2 id="detail-name"></h2>
+            </div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+        </div>
+        <div id="detail-content"></div>
+    </dialog>
+    <script type="module" src="./app.js"></script>
+</body>
+
+</html>
