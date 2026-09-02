@@ -8,7 +8,10 @@ data.subjects.forEach(s => { s.chapters ??= [];
 s.totalLessons = Math.max(Number(s.totalLessons) || 0, ...s.chapters.map(c => (c.lessons || []).length), 0);
 s.durationDays = Number(s.durationDays) || 0;
 s.color = colors[s.color] ? s.color : "green";
-s.chapters.forEach(c => c.lessons ??= []) });
+s.chapters.forEach(c => {
+	c.lessons ??= [];
+	c.totalLessons = Math.max(Number(c.totalLessons) || 0, c.lessons.length);
+}) });
 data.tasks.forEach(t => { t.done = !!t.done }) } normalize();
 const lessons = s => s.chapters.flatMap(c => c.lessons.map(l => ({ ...l, chapter: c.name, chapterId: c.id, subject: s.name, subjectId: s.id }))), completed = s => lessons(s).filter(l => l.done).length, total = s => Math.max(Number(s.totalLessons) || 0, lessons(s).length), percent = s => total(s) ? Math.round(completed(s) / total(s) * 100) : 0, all = () => data.subjects.flatMap(lessons), allTotal = () => data.subjects.reduce((n, s) => n + total(s), 0), allDone = () => data.subjects.reduce((n, s) => n + completed(s), 0), overall = () => allTotal() ? Math.round(allDone() / allTotal() * 100) : 0, persist = () => { save(data);
 render() };
@@ -19,7 +22,6 @@ el.innerHTML = data.tasks.map(t => `<li class="task-row ${t.done ? "done" : ""}"
 $(empty).hidden = !!data.tasks.length } function renderHome() { let next = all().find(l => !l.done) || all()[0];
 $("#next-lesson").innerHTML = next ? `<strong>${esc(next.name)}</strong><span>${esc(next.subject)} · ${esc(next.chapter)}${next.today ? " · ضمن خطة اليوم" : ""}</span>` : "<strong>لا توجد دروس بعد</strong><span>أضف مادة أو تفاصيل دروس لتبدأ.</span>";
 $("#home-subjects").innerHTML = data.subjects.slice(0, 3).map(subjectCard).join("");
-$("#tasks-count").textContent = data.tasks.filter(t => !t.done).length.toLocaleString("ar-IQ");
 $("#subjects-count").textContent = data.subjects.length.toLocaleString("ar-IQ") } function renderSubjects() { $("#subjects").innerHTML = data.subjects.map(subjectCard).join("");
 $("#no-subjects").hidden = !!data.subjects.length } function renderStats() { $("#stats-progress").textContent = overall() + "%";
 $("#stats-completed").textContent = allDone().toLocaleString("ar-IQ");
@@ -41,6 +43,15 @@ if (!s) return;
 let t = total(s), d = completed(s), r = Math.max(t - d, 0), daily = s.durationDays ? Math.ceil(r / s.durationDays) : 0, finish = s.durationDays ? new Date(Date.now() + s.durationDays * 86400000).toLocaleDateString("ar-IQ") : "غير محدد";
 $("#detail-name").textContent = s.name;
 $("#detail-content").innerHTML = `<div class="progress" style="--subject:${colors[s.color]}"><span style="width:${percent(s)}%"></span></div><div class="detail-summary"><div><strong>${percent(s)}%</strong><small>نسبة الإنجاز</small></div><div><strong>${t}</strong><small>إجمالي الدروس</small></div><div><strong>${d}</strong><small>المكتمل</small></div><div><strong>${r}</strong><small>المتبقي</small></div><div><strong>${daily || "—"}</strong><small>المطلوب يوميًا</small></div><div><strong>${finish}</strong><small>الموعد المتوقع</small></div></div><div class="detail-tabs"><button class="active">نظرة عامة</button><button>الدروس</button><button>الخطة</button><button>الإحصائيات</button></div>${s.chapters.map(c => `<section class="chapter"><div class="chapter-head"><h3>${esc(c.name)}</h3><div class="chapter-actions"><button class="soft-button" data-add-lesson="${s.id}|${c.id}">+ درس</button><button class="delete" data-delete-chapter="${s.id}|${c.id}">×</button></div></div>${c.lessons.map(l => `<div class="lesson-row ${l.done ? "done" : ""}"><input type="checkbox" data-lesson="${s.id}|${c.id}|${l.id}" ${l.done ? "checked" : ""}><div><strong>${esc(l.name)}</strong>${l.today ? "<small>ضمن دروس اليوم</small>" : ""}</div><button class="delete" data-delete-lesson="${s.id}|${c.id}|${l.id}">×</button></div>`).join("") || '<small>لا توجد تفاصيل دروس بعد.</small>'}</section>`).join("") || '<p class="empty">يمكنك إضافة تفاصيل الفصول والدروس لاحقًا.</p>'}<button class="primary wide quick-lesson" data-add-quick-lesson="${s.id}">+ إضافة درس لهذه المادة</button>`;
+	s.chapters.forEach((chapter, index) => {
+	  const heading = $("#detail-content").querySelectorAll(".chapter h3")[index];
+	if (heading) {
+		const completedLessons = chapter.lessons.filter(lesson => lesson.done).length;
+		const progress = chapter.totalLessons ? Math.round(completedLessons / chapter.totalLessons * 100) : 0;
+		heading.insertAdjacentHTML("beforeend", ` <small>${completedLessons} / ${chapter.totalLessons} دروس مكتملة · ${progress}%</small><input class="chapter-total" type="number" min="1" value="${chapter.totalLessons}" data-chapter-total="${chapter.id}" aria-label="عدد الدروس في الفصل">`);
+	}
+	});
+
 $("#subject-detail").showModal() } function openModal(name) { $("#" + name + "-modal").showModal() } document.addEventListener("click", e => { let b = e.target.closest("button,[data-detail]");
 if (!b) return;
 if (b.dataset.closeModal) { e.preventDefault();
@@ -78,7 +89,25 @@ t.done = e.target.checked;
 persist() } if (e.target.dataset.lesson) { let [s, c, l] = e.target.dataset.lesson.split("|");
 let lesson = data.subjects.find(x => x.id === s).chapters.find(x => x.id === c).lessons.find(x => x.id === l);
 lesson.done = e.target.checked;
-persist() } });
+persist();
+if ($("#subject-detail").open) openDetail(s);
+} });
+document.addEventListener("change", e => {
+	if (!e.target.dataset.chapterTotal) return;
+	const chapterId = e.target.dataset.chapterTotal;
+	const totalLessons = Math.max(Number(e.target.value) || 1, 1);
+	const subject = data.subjects.find(item => item.chapters.some(chapter => chapter.id === chapterId));
+	const chapter = subject?.chapters.find(item => item.id === chapterId);
+	if (!chapter) return;
+	chapter.totalLessons = totalLessons;
+	chapter.lessons = Array.from({ length: totalLessons }, (_, index) => ({
+		id: chapter.lessons[index]?.id || uid(),
+		name: `درس ${index + 1}`,
+		done: chapter.lessons[index]?.done || false
+	}));
+	persist();
+	if ($("#subject-detail").open) openDetail(subject.id);
+});
 $("#subject-form").addEventListener("input", () => { let f = new FormData($("#subject-form")), t = +f.get("totalLessons"), d = +f.get("durationDays");
 $("#daily-goal-preview").textContent = t && d ? `خطة مقترحة: نحو ${Math.ceil(t / d)} دروس يوميًا لمدة ${d} يومًا.` : "أدخل إجمالي الدروس والمدة ليظهر هدفك اليومي." });
 $("#subject-form").onsubmit = e => { e.preventDefault();
@@ -96,8 +125,8 @@ e.target.reset();
 $("#task-modal").close();
 persist() };
 $("#chapter-form").onsubmit = e => { e.preventDefault();
-let f = new FormData(e.target);
-data.subjects.find(s => s.id === f.get("subjectId")).chapters.push({ id: uid(), name: f.get("name").trim(), lessons: [] });
+let f = new FormData(e.target), subject = data.subjects.find(s => s.id === f.get("subjectId")), totalLessons = Math.max(+f.get("totalLessons") || 1, 1);
+subject.chapters.push({ id: uid(), name: f.get("name").trim(), totalLessons, lessons: Array.from({ length: totalLessons }, (_, index) => ({ id: uid(), name: `درس ${index + 1}`, done: false })) });
 e.target.reset();
 $("#chapter-modal").close();
 persist() };
