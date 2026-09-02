@@ -196,8 +196,19 @@
         <form id="chapter-form">
             <div class="modal-head">
                 <h2>فصل جديد</h2><button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
-            </div><input type="hidden" name="subjectId"><label>اسم الفصل<input name="name" required maxlength="60"
-                    placeholder="مثال: الفصل الأول"></label><button class="primary wide">إضافة الفصل</button>
+                <input type="hidden" name="subjectId">
+
+<label>
+  اسم الفصل
+  <input name="name" required maxlength="60" placeholder="مثال: الفصل الأول">
+</label>
+
+<label>
+  عدد الدروس في الفصل
+  <input name="totalLessons" type="number" min="1" required placeholder="مثال: 20">
+</label>
+
+<button class="primary wide">إضافة الفصل</button>
         </form>
     </dialog>
     <dialog id="lesson-modal">
