@@ -143,7 +143,8 @@
     <h2>إضافة مادة</h2>
   </div>
 
-  <button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+    <button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
+</div>
 </div>
             <div class="subject-symbol">▱</div><label>اسم المادة<input name="name" required maxlength="50"
                     placeholder="مثال: الكيمياء"></label>
@@ -175,7 +176,7 @@
                 <div>
                     <p class="eyebrow dark">تنظيم يومك</p>
                     <h2>إضافة مهمة</h2>
-                </div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+                </div><button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
             </div><label>اسم المهمة<input name="name" required maxlength="80"
                     placeholder="مثال: مراجعة محاضرة الكيمياء"></label>
             <div class="form-grid"><label>المادة<select name="subject" id="task-subject">
@@ -194,7 +195,7 @@
     <dialog id="chapter-modal">
         <form id="chapter-form">
             <div class="modal-head">
-                <h2>فصل جديد</h2><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+                <h2>فصل جديد</h2><button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
             </div><input type="hidden" name="subjectId"><label>اسم الفصل<input name="name" required maxlength="60"
                     placeholder="مثال: الفصل الأول"></label><button class="primary wide">إضافة الفصل</button>
         </form>
@@ -202,7 +203,7 @@
     <dialog id="lesson-modal">
         <form id="lesson-form">
             <div class="modal-head">
-                <h2>درس أو محاضرة</h2><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+                <h2>درس أو محاضرة</h2><button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
             </div><input type="hidden" name="subjectId"><input type="hidden" name="chapterId"><label>اسم الدرس<input
                     name="name" required maxlength="80" placeholder="مثال: المحاضرة الأولى"></label><label
                 class="check-label"><input type="checkbox" name="today"> ضمن دروس اليوم</label><button
@@ -214,7 +215,7 @@
             <div>
                 <p class="eyebrow dark">تفاصيل المادة</p>
                 <h2 id="detail-name"></h2>
-            </div><button type="button" class="close" data-close-modal aria-label="إغلاق">×</button>
+            </div><button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
         </div>
         <div id="detail-content"></div>
     </dialog>
