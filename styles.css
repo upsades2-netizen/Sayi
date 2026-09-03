@@ -1051,3 +1051,301 @@ dialog {
         z-index: 5
     }
 }
+/* ========================================
+   تصميم الفصول والدروس - متناسق مع التطبيق
+======================================== */
+
+/* بطاقة الفصل */
+.chapter {
+  margin: 12px 0;
+  overflow: hidden;
+
+  background: rgba(255, 255, 255, 0.08);
+
+  border: 1px solid rgba(255, 255, 255, 0.22);
+
+  border-radius: 18px;
+
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+
+/* رأس الفصل */
+.chapter-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  min-height: 54px;
+  padding: 8px 12px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(126, 150, 57, 0.16),
+      rgba(255, 255, 255, 0.04)
+    );
+
+  border-bottom:
+    1px solid rgba(255, 255, 255, 0.10);
+}
+
+
+/* اسم الفصل */
+.chapter-head h3 {
+  flex: 1;
+
+  margin: 0;
+
+  font-size: 15px;
+  font-weight: 700;
+}
+
+
+/* معلومات التقدم */
+.chapter-head h3 small {
+  display: block;
+
+  margin-top: 3px;
+
+  font-size: 10px;
+  font-weight: 500;
+
+  opacity: 0.65;
+}
+
+
+/* زر فتح وإغلاق الفصل */
+.chapter-toggle {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border-radius: 11px;
+
+  color: inherit;
+
+  background:
+    rgba(255, 255, 255, 0.08);
+
+  border:
+    1px solid rgba(255, 255, 255, 0.16);
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.chapter-toggle:hover {
+  background:
+    rgba(126, 150, 57, 0.20);
+}
+
+
+.chapter-toggle:active {
+  transform: scale(0.92);
+}
+
+
+/* أزرار الفصل */
+.chapter-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+
+/* ========================================
+   صف الدرس
+======================================== */
+
+.lesson-row {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  min-height: 42px;
+
+  margin: 4px 7px;
+  padding: 5px 9px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(255, 255, 255, 0.045);
+
+  border:
+    1px solid rgba(255, 255, 255, 0.06);
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.lesson-row:hover {
+  background:
+    rgba(255, 255, 255, 0.09);
+}
+
+
+.lesson-row > div {
+  flex: 1;
+}
+
+
+/* اسم الدرس */
+.lesson-row strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+
+/* النص الصغير */
+.lesson-row small {
+  display: block;
+
+  margin-top: 2px;
+
+  font-size: 10px;
+
+  opacity: 0.55;
+}
+
+
+/* ========================================
+   دائرة الإكمال
+======================================== */
+
+.lesson-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 22px;
+  height: 22px;
+
+  min-width: 22px;
+
+  margin: 0;
+
+  border-radius: 50%;
+
+  border:
+    1.5px solid rgba(255, 255, 255, 0.38);
+
+  background:
+    rgba(255, 255, 255, 0.06);
+
+  cursor: pointer;
+
+  display: grid;
+  place-items: center;
+
+  transition:
+    all 0.2s ease;
+}
+
+
+/* عند الضغط أو التركيز */
+.lesson-row input[type="checkbox"]:hover {
+  border-color:
+    rgba(163, 190, 80, 0.9);
+
+  background:
+    rgba(126, 150, 57, 0.12);
+}
+
+
+/* عند إكمال الدرس */
+.lesson-row input[type="checkbox"]:checked {
+  border-color:
+    #8fae45;
+
+  background:
+    linear-gradient(
+      135deg,
+      #78983d,
+      #9fbd55
+    );
+
+  box-shadow:
+    0 3px 10px rgba(126, 150, 57, 0.28);
+}
+
+
+/* علامة الصح */
+.lesson-row input[type="checkbox"]:checked::after {
+  content: "✓";
+
+  color: white;
+
+  font-size: 13px;
+  font-weight: 800;
+}
+
+
+/* الدرس المكتمل */
+.lesson-row.done {
+  background:
+    rgba(126, 150, 57, 0.09);
+}
+
+
+.lesson-row.done strong {
+  opacity: 0.65;
+}
+
+
+/* ========================================
+   حقل عدد الدروس
+======================================== */
+
+.chapter-total {
+  width: 46px;
+  height: 28px;
+
+  padding: 2px;
+
+  border-radius: 9px;
+
+  text-align: center;
+
+  color: inherit;
+
+  background:
+    rgba(255, 255, 255, 0.07);
+
+  border:
+    1px solid rgba(255, 255, 255, 0.15);
+
+  outline: none;
+}
+
+
+.chapter-total:focus {
+  border-color:
+    rgba(159, 189, 85, 0.75);
+}
+
+
+/* زر حذف الدرس */
+.lesson-row .delete {
+  opacity: 0.4;
+}
+
+
+.lesson-row:hover .delete {
+  opacity: 0.8;
+}

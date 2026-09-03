@@ -44,7 +44,7 @@ let t = total(s), d = completed(s), r = Math.max(t - d, 0), daily = s.durationDa
 $("#detail-name").textContent = s.name;
 $("#detail-content").innerHTML = `<div class="progress" style="--subject:${colors[s.color]}"><span style="width:${percent(s)}%"></span></div><div class="detail-summary"><div><strong>${percent(s)}%</strong><small>نسبة الإنجاز</small></div><div><strong>${t}</strong><small>إجمالي الدروس</small></div><div><strong>${d}</strong><small>المكتمل</small></div><div><strong>${r}</strong><small>المتبقي</small></div><div><strong>${daily || "—"}</strong><small>المطلوب يوميًا</small></div><div><strong>${finish}</strong><small>الموعد المتوقع</small></div></div><div class="detail-tabs"><button class="active">نظرة عامة</button><button>الدروس</button><button>الخطة</button><button>الإحصائيات</button></div>${s.chapters.map(c => `<section class="chapter"><div class="chapter-head">
   <button class="chapter-toggle" type="button" aria-expanded="true">▼</button>
-  <h3>${esc(c.name)}</h3>${esc(c.name)}</h3><div class="chapter-actions"><button class="soft-button" data-add-lesson="${s.id}|${c.id}">+ درس</button><button class="delete" data-delete-chapter="${s.id}|${c.id}">×</button></div></div>${c.lessons.map(l => `<div class="lesson-row ${l.done ? "done" : ""}"><input type="checkbox" data-lesson="${s.id}|${c.id}|${l.id}" ${l.done ? "checked" : ""}><div><strong>${esc(l.name)}</strong>${l.today ? "<small>ضمن دروس اليوم</small>" : ""}</div><button class="delete" data-delete-lesson="${s.id}|${c.id}|${l.id}">×</button></div>`).join("") || '<small>لا توجد تفاصيل دروس بعد.</small>'}</section>`).join("") || '<p class="empty">يمكنك إضافة تفاصيل الفصول والدروس لاحقًا.</p>'}<button class="primary wide quick-lesson" data-add-quick-lesson="${s.id}">+ إضافة درس لهذه المادة</button>`;
+	<h3>${esc(c.name)}</h3><div class="chapter-actions"><button class="soft-button" data-add-lesson="${s.id}|${c.id}">+ درس</button><button class="delete" data-delete-chapter="${s.id}|${c.id}">×</button></div></div>${c.lessons.map(l => `<div class="lesson-row ${l.done ? "done" : ""}"><input type="checkbox" data-lesson="${s.id}|${c.id}|${l.id}" ${l.done ? "checked" : ""}><div><strong>${esc(l.name)}</strong>${l.today ? "<small>ضمن دروس اليوم</small>" : ""}</div><button class="delete" data-delete-lesson="${s.id}|${c.id}|${l.id}">×</button></div>`).join("") || '<small>لا توجد تفاصيل دروس بعد.</small>'}</section>`).join("") || '<p class="empty">يمكنك إضافة تفاصيل الفصول والدروس لاحقًا.</p>'}<button class="primary wide quick-lesson" data-add-quick-lesson="${s.id}">+ إضافة درس لهذه المادة</button>`;
 	s.chapters.forEach((chapter, index) => {
 	  const heading = $("#detail-content").querySelectorAll(".chapter h3")[index];
 	if (heading) {
@@ -61,12 +61,7 @@ b.closest("dialog")?.close();
 return } if (b.dataset.view) { showView(b.dataset.view);
 return } if (b.dataset.open) { openModal(b.dataset.open);
 return } if (b.dataset.detail) { openDetail(b.dataset.detail);
-return } if (b.dataset.selectColor)if (b.dataset.detail) {
-  openDetail(b.dataset.detail);
-  return;
-}
-
-if (b.classList.contains("chapter-toggle")) {
+return } if (b.classList.contains("chapter-toggle")) {
   const chapter = b.closest(".chapter");
   const lessons = chapter.querySelectorAll(".lesson-row");
   const isOpen = b.getAttribute("aria-expanded") === "true";
@@ -78,7 +73,7 @@ if (b.classList.contains("chapter-toggle")) {
   b.setAttribute("aria-expanded", String(!isOpen));
   b.textContent = isOpen ? "▶" : "▼";
   return;
-} { let form = b.closest("form"), input = form?.querySelector("[name=color]");
+} if (b.dataset.selectColor) { let form = b.closest("form"), input = form?.querySelector("[name=color]");
 if (input) { input.value = b.dataset.selectColor;    
 form.querySelectorAll("[data-select-color]").forEach(x => x.classList.toggle("selected", x === b)) } return } if (b.dataset.addQuickLesson) { let subject = data.subjects.find(s => s.id === b.dataset.addQuickLesson);
 let chapter = subject.chapters[0];
