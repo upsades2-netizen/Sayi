@@ -676,6 +676,236 @@ select {
     color: var(--muted)
 }
 
+.study-plan {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: #ffffff32
+}
+
+.study-plan h3 {
+    margin: 2px 0 0;
+    font-size: .98rem
+}
+
+.plan-days {
+    color: var(--muted);
+    font-size: .72rem
+}
+
+.plan-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 12px
+}
+
+.plan-card {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: #fffdf86e
+}
+
+.plan-card.selected {
+    border-color: var(--green);
+    background: var(--soft)
+}
+
+.plan-card strong {
+    display: block;
+    color: var(--green);
+    font-size: .82rem
+}
+
+.plan-card p,
+.today-plan p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: .68rem;
+    line-height: 1.6
+}
+
+.plan-card .soft-button {
+    width: 100%;
+    margin-top: 8px;
+    padding: 7px 6px;
+    font-size: .7rem
+}
+
+.today-plan {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line)
+}
+
+.today-plan .progress {
+    margin: 8px 0 0;
+    height: 7px
+}
+
+.today-plan .progress span {
+    background: var(--green)
+}
+
+.global-plan {
+    margin-top: 18px
+}
+
+.global-plan .section-head {
+    align-items: flex-start
+}
+
+.global-plan .section-head>div {
+    min-width: 0
+}
+
+.global-plan .section-head h2,
+.today-global-plan h3 {
+    margin: 2px 0 0
+}
+
+.global-plan .section-head p:not(.eyebrow) {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: .82rem
+}
+
+.plan-duration {
+    width: 130px;
+    flex: 0 0 auto
+}
+
+.plan-duration input {
+    padding: 8px 10px !important;
+    margin-top: 5px
+}
+
+.global-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 16px
+}
+
+.global-summary div {
+    padding: 11px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #ffffff2b
+}
+
+.global-summary strong {
+    display: block;
+    color: var(--green);
+    font-size: 1.1rem
+}
+
+.global-summary small {
+    color: var(--muted);
+    font-size: .7rem
+}
+
+.global-plan-cards {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px
+}
+
+.global-plan-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: #fffdf86e
+}
+
+.global-plan-card.selected {
+    border-color: var(--green);
+    background: var(--soft)
+}
+
+.global-plan-card strong {
+    color: var(--green);
+    font-size: .88rem
+}
+
+.global-plan-card p,
+.global-plan-message,
+.today-global-plan>p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: .75rem
+}
+
+.plan-suggestion {
+    padding: 11px 12px;
+    border: 1px solid #d6b86b66;
+    border-radius: 12px;
+    background: #f7e8b933;
+    color: var(--ink);
+    font-size: .78rem
+}
+
+.plan-suggestion strong {
+    display: inline-block;
+    margin-top: 4px;
+    color: var(--green)
+}
+
+.plan-suggestion p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: .73rem
+}
+
+.global-plan-message {
+    padding: 10px 0 2px;
+}
+
+.today-global-plan {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line)
+}
+
+.today-global-plan h3 {
+    font-size: 1rem
+}
+
+.today-global-plan .section-head>strong {
+    color: var(--green);
+    font-size: 1.25rem
+}
+
+.today-global-plan .progress {
+    margin: 10px 0 0
+}
+
+.plan-distribution {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 10px
+}
+
+.plan-distribution span {
+    padding: 6px 9px;
+    border-radius: 9px;
+    background: var(--soft);
+    color: var(--muted);
+    font-size: .72rem
+}
+
+.plan-distribution strong {
+    color: var(--green)
+}
+
 .chapter {
     border: 1px solid var(--line);
     border-radius: 13px;
@@ -881,6 +1111,25 @@ select {
 
     .quick-card strong {
         font-size: .9rem
+    }
+}
+
+@media(max-width:480px) {
+    .plan-cards {
+        grid-template-columns: 1fr
+    }
+
+    .global-summary {
+        grid-template-columns: repeat(2, 1fr)
+    }
+
+    .global-plan-card {
+        align-items: flex-start;
+        flex-direction: column
+    }
+
+    .global-plan-card .soft-button {
+        width: 100%
     }
 }
 
@@ -1348,4 +1597,12 @@ dialog {
 
 .lesson-row:hover .delete {
   opacity: 0.8;
+}
+.complete-chapter {
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.complete-chapter:hover {
+  transform: translateY(-1px);
 }
