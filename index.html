@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=3">
+    <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 
 <body>
@@ -28,8 +28,11 @@
                 <p id="today-date"></p>
                 <h1 id="page-title">مرحبًا، طالب السَعي 👋</h1>
             </div>
-            <div class="top-actions"><button class="round-button" aria-label="الإشعارات">♧</button><button
-                    class="avatar" aria-label="ملف الطالب">ط</button></div>
+            <div class="top-actions">
+                <button class="round-button" id="theme-toggle" type="button" aria-label="تبديل الوضع الليلي">☾</button>
+                <button class="round-button" type="button" aria-label="الإشعارات">♧</button>
+                <button class="avatar" type="button" aria-label="ملف الطالب">ط</button>
+            </div>
         </header>
         <main>
             <section id="home-view" class="view active">
@@ -146,7 +149,6 @@
 
     <button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
 </div>
-</div>
             <div class="subject-symbol">▱</div><label>اسم المادة<input name="name" required maxlength="50"
                     placeholder="مثال: الكيمياء"></label>
             <div class="form-grid"><label>إجمالي الدروس<input name="totalLessons" type="number" min="1" max="10000"
@@ -223,6 +225,20 @@
         </div>
         <div id="detail-content"></div>
     </dialog>
+    <script>
+(function () {
+    const root = document.documentElement;
+    const btn = document.getElementById('theme-toggle');
+    const saved = localStorage.getItem('sayi-theme') || 'light';
+    if (saved === 'dark') { root.setAttribute('data-theme', 'dark'); btn.textContent = '☀'; }
+    btn.addEventListener('click', () => {
+        const goingDark = root.getAttribute('data-theme') !== 'dark';
+        root.setAttribute('data-theme', goingDark ? 'dark' : 'light');
+        btn.textContent = goingDark ? '☀' : '☾';
+        localStorage.setItem('sayi-theme', goingDark ? 'dark' : 'light');
+    });
+})();
+</script>
     <script type="module" src="./app.js"></script>
 </body>
 

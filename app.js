@@ -19,7 +19,9 @@ const colors = {
 let data = load();
 let activeView = "home";
 
-const uid = () => crypto.randomUUID();
+const uid = () =>
+  globalThis.crypto?.randomUUID?.() ||
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 const esc = x =>
   String(x || "").replace(/[&<>"']/g, c => ({
@@ -449,6 +451,9 @@ function renderHome() {
 
   $("#subjects-count").textContent =
     data.subjects.length.toLocaleString("ar-IQ");
+
+  $("#tasks-count").textContent =
+    data.tasks.length.toLocaleString("ar-IQ");
 }
 
 // =========================

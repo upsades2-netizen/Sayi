@@ -7,7 +7,11 @@
     --surface: #fffdf8;
     --line: #e8e2d7;
     --soft: #eaf1e9;
-    --shadow: 0 12px 35px #173b2d12
+    --shadow: 0 12px 35px #173b2d12;
+    --glass: rgba(255, 255, 255, .55);
+    --glass-strong: rgba(255, 255, 255, .74);
+    --glass-border: rgba(255, 255, 255, .7);
+    --glass-shadow: 0 20px 45px rgba(23, 54, 44, .16)
 }
 
 * {
@@ -36,7 +40,13 @@ select {
 
 button {
     cursor: pointer;
-    -webkit-tap-highlight-color: transparent
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .15s ease, opacity .15s ease
+}
+
+button:active {
+    transform: scale(.96);
+    opacity: .85
 }
 
 .sidebar {
@@ -544,7 +554,9 @@ dialog {
 }
 
 dialog::backdrop {
-    background: #173b2d77
+    background: #173b2d55;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px)
 }
 
 dialog form {
@@ -1135,29 +1147,31 @@ select {
 
 /* Soft glass layers inspired by the reference while preserving readability. */
 body {
-    background: radial-gradient(circle at 12% 4%, #d7e5d8 0, transparent 28rem), radial-gradient(circle at 92% 18%, #efe0bd 0, transparent 30rem), var(--cream)
+    background: radial-gradient(circle at 15% 8%, #3aa87766 0, transparent 42rem), radial-gradient(circle at 88% 6%, #e8b23c73 0, transparent 40rem), radial-gradient(circle at 50% 100%, #2f8a6a4d 0, transparent 46rem), var(--cream);
+    background-attachment: fixed
 }
 
 .topbar {
-    background: #f6f1e7b5;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px)
+    background: var(--glass-strong);
+    backdrop-filter: blur(26px) saturate(180%);
+    -webkit-backdrop-filter: blur(26px) saturate(180%)
 }
 
 .quick-card,
 .panel,
 .subject-card,
 dialog {
-    background: linear-gradient(135deg, #fffdf8df, #f8f4eab8);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-color: #ffffff9c;
-    box-shadow: 0 15px 35px #16362c14
+    background: var(--glass);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, .6)
 }
 
 .hero {
     position: relative;
-    background: linear-gradient(135deg, #174d3cef, #286c52de)
+    background: linear-gradient(135deg, #174d3cef, #286c52de);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, .25)
 }
 
 .hero::after {
@@ -1179,17 +1193,21 @@ dialog {
 
 .round-button,
 .close {
-    background: #fffdf8d9;
-    border: 1px solid #ffffffb8
+    background: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%)
 }
 
 .bottom-nav {
-    background: #fffdf8d9;
-    border-color: #ffffffb8
+    background: var(--glass-strong);
+    border-color: var(--glass-border);
+    backdrop-filter: blur(26px) saturate(180%);
+    -webkit-backdrop-filter: blur(26px) saturate(180%)
 }
 
 .subject-card {
-    border-right: 1px solid #ffffffc4
+    border-right: 1px solid var(--glass-border)
 }
 
 .color-palette {
@@ -1197,9 +1215,11 @@ dialog {
     flex-wrap: wrap;
     gap: 9px;
     padding: 11px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
-    background: #fffdf89e
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%)
 }
 
 .color-swatch {
@@ -1291,7 +1311,7 @@ dialog {
 @media(min-width:760px) {
     .sidebar {
         background: linear-gradient(180deg, #174d3ce8, #133d31ed);
-        backdrop-filter: blur(18px)
+        backdrop-filter: blur(18px) saturate(160%)
     }
 
     .topbar {
@@ -1605,4 +1625,30 @@ dialog {
 
 .complete-chapter:hover {
   transform: translateY(-1px);
+}
+:root[data-theme="dark"] {
+    --ink: #F3EFE6;
+    --muted: #8B93A8;
+    --green: #F5B942;
+    --green-dark: #D99420;
+    --cream: #12162B;
+    --surface: #1B2140;
+    --line: rgba(243, 239, 230, .09);
+    --soft: #242C55;
+    --shadow: 0 12px 35px rgba(0, 0, 0, .5);
+    --glass: rgba(27, 33, 64, .55);
+    --glass-strong: rgba(27, 33, 64, .74);
+    --glass-border: rgba(255, 255, 255, .1);
+    --glass-shadow: 0 20px 45px rgba(0, 0, 0, .55)
+}
+
+:root[data-theme="dark"] input:not([type=checkbox]),
+:root[data-theme="dark"] select {
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--line)
+}
+
+:root[data-theme="dark"] body {
+    background: radial-gradient(circle at 15% 8%, #f5b94255 0, transparent 42rem), radial-gradient(circle at 88% 6%, #7fb69e40 0, transparent 40rem), radial-gradient(circle at 50% 100%, #d9942033 0, transparent 46rem), var(--cream)
 }
