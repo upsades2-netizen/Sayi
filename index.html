@@ -264,12 +264,11 @@
             <label>اليوم<select name="day" required>
                 <option value="saturday">السبت</option><option value="sunday">الأحد</option><option value="monday">الاثنين</option><option value="tuesday">الثلاثاء</option><option value="wednesday">الأربعاء</option><option value="thursday">الخميس</option><option value="friday">الجمعة</option>
             </select></label>
-            <label>المادة أو المهمة<select name="subject" id="weekly-subject">
-                <option value="">مهمة عامة</option>
+            <label>المادة<select name="subjectId" id="weekly-subject" required>
+                <option value="">اختر مادة من موادك</option>
             </select></label>
-            <label>اسم المهمة<input name="title" required maxlength="80" placeholder="مثال: مراجعة الفصل الأول"></label>
-            <div class="form-grid"><label>الوقت <small>اختياري</small><input name="time" type="time"></label><label>ملاحظة <small>اختياري</small><input name="note" maxlength="120" placeholder="ملاحظة قصيرة"></label></div>
-            <button class="primary wide">حفظ في الجدول</button>
+            <p id="weekly-no-subjects" class="empty" hidden>أضف مادة أولًا من صفحة المواد.</p>
+            <button class="primary wide" id="weekly-submit">إضافة المادة إلى الجدول</button>
         </form>
     </dialog>
     <dialog id="chapter-modal">

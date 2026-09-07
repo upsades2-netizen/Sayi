@@ -32,6 +32,11 @@ const esc = x =>
     "'": "&#039;"
   }[c]));
 
+const weekDays = [
+  ["saturday", "السبت"], ["sunday", "الأحد"], ["monday", "الاثنين"],
+  ["tuesday", "الثلاثاء"], ["wednesday", "الأربعاء"], ["thursday", "الخميس"], ["friday", "الجمعة"]
+];
+
 // =========================
 // البيانات
 // =========================
@@ -40,9 +45,60 @@ function normalize() {
   data.subjects ??= [];
   data.tasks ??= [];
   data.studyLog ??= [];
-  data.weeklySchedule = Array.isArray(data.weeklySchedule)
-    ? data.weeklySchedule.filter(item => item && item.id && item.day && item.title)
-    : [];
+  const validDays = new Set(weekDays.map(([key]) => key));
+  const schedule = Array.isArray(data.weeklySchedule) ? data.weeklySchedule : [];
+  const isNewSchedule = schedule.every(item => item && Array.isArray(item.tasks));
+  let scheduleMigrated = false;
+
+  if (!isNewSchedule) {
+    const grouped = [];
+    const legacy = Array.isArray(data.weeklyScheduleLegacy)
+      ? data.weeklyScheduleLegacy
+      : [];
+    schedule.forEach(item => {
+      if (!item || !validDays.has(item.day)) {
+        if (item) legacy.push(item);
+        return;
+      }
+      const subject = data.subjects.find(s =>
+        (item.subjectId && s.id === item.subjectId) ||
+        (item.subject && s.name === item.subject)
+      );
+      if (!subject || !(item.title || item.name)) {
+        legacy.push(item);
+        return;
+      }
+
+      let entry = grouped.find(x =>
+        x.day === item.day && x.subjectId === subject.id
+      );
+      if (!entry) {
+        entry = { id: uid(), day: item.day, subjectId: subject.id, tasks: [] };
+        grouped.push(entry);
+      }
+      entry.tasks.push({
+        id: item.id || uid(),
+        title: String(item.title || item.name).trim(),
+        done: !!item.done
+      });
+    });
+    data.weeklySchedule = grouped;
+    data.weeklyScheduleLegacy = legacy;
+    scheduleMigrated = true;
+  } else {
+    data.weeklySchedule = schedule
+      .filter(item => item && item.id && validDays.has(item.day) && item.subjectId)
+      .map(item => ({
+        ...item,
+        tasks: item.tasks
+          .filter(task => task && task.id && String(task.title || task.name || "").trim())
+          .map(task => ({
+            ...task,
+            title: String(task.title || task.name).trim(),
+            done: !!task.done
+          }))
+      }));
+  }
   data.studyLog = data.studyLog
     .filter(e => e && e.date)
     .map(e => ({
@@ -103,6 +159,8 @@ function normalize() {
   data.tasks.forEach(t => {
     t.done = !!t.done;
   });
+
+  if (scheduleMigrated) save(data);
 }
 
 normalize();
@@ -565,27 +623,27 @@ function renderSubjects() {
     !!data.subjects.length;
 }
 
-const weekDays = [
-  ["saturday", "السبت"], ["sunday", "الأحد"], ["monday", "الاثنين"],
-  ["tuesday", "الثلاثاء"], ["wednesday", "الأربعاء"], ["thursday", "الخميس"], ["friday", "الجمعة"]
-];
-
 function renderWeekly() {
   const root = $("#weekly-schedule");
   if (!root) return;
 
-  root.innerHTML = weekDays.map(([key, label]) => {
+  root.innerHTML = `${!data.subjects.length ? `<div class="weekly-no-subjects"><strong>أضف مادة أولًا من صفحة المواد</strong><button class="text-button" data-view="subjects">الانتقال إلى المواد</button></div>` : ""}${weekDays.map(([key, label]) => {
     const items = data.weeklySchedule.filter(item => item.day === key);
     return `<article class="weekly-day">
-      <div class="weekly-day-head"><div><strong>${label}</strong><small>${items.length ? `${items.length} عناصر` : "لا توجد مهام"}</small></div><button class="text-button" data-open-weekly-day="${key}">+ إضافة</button></div>
-      <div class="weekly-items">${items.map(item => `
-        <div class="weekly-item ${item.done ? "done" : ""}">
-          <button class="weekly-check" data-weekly-toggle="${item.id}" aria-label="${item.done ? "إلغاء إكمال" : "تحديد كمكتملة"}">${item.done ? "✓" : ""}</button>
-          <div class="weekly-item-body"><strong>${esc(item.title)}</strong><small>${esc(item.subject || "مهمة عامة")}${item.time ? ` · ${esc(item.time)}` : ""}</small>${item.note ? `<p>${esc(item.note)}</p>` : ""}</div>
-          <div class="weekly-item-actions"><button class="icon-button" data-edit-weekly="${item.id}" aria-label="تعديل">✎</button><button class="icon-button" data-copy-weekly="${item.id}" aria-label="نسخ إلى يوم آخر">↗</button><button class="delete" data-delete-weekly="${item.id}" aria-label="حذف">×</button></div>
-        </div>`).join("") || `<p class="weekly-empty">أضف أول مهمة لهذا اليوم.</p>`}</div>
+      <div class="weekly-day-head"><div><strong>${label}</strong><small>${items.length ? `${items.length} مواد` : "لا توجد مواد"}</small></div><button class="text-button" data-open-weekly-day="${key}">+ إضافة مادة</button></div>
+      <div class="weekly-subjects">${items.map(item => {
+        const subject = data.subjects.find(s => s.id === item.subjectId);
+        if (!subject) return "";
+        return `<section class="weekly-subject" style="--subject:${colors[subject.color] || colors.green}">
+          <div class="weekly-subject-head"><strong>${esc(subject.name)}</strong><button class="icon-button" data-delete-weekly-subject="${item.id}" aria-label="حذف المادة من الجدول">×</button></div>
+          <ul class="weekly-task-list">${item.tasks.map(task => `<li class="weekly-task ${task.done ? "done" : ""}">
+            <button class="weekly-check" data-weekly-toggle-task="${item.id}|${task.id}" aria-label="${task.done ? "إلغاء إكمال" : "تحديد كمكتملة"}">${task.done ? "✓" : ""}</button><span>${esc(task.title)}</span><button class="icon-button" data-delete-weekly-task="${item.id}|${task.id}" aria-label="حذف المهمة">×</button>
+          </li>`).join("") || `<li class="weekly-empty">لا توجد مهام لهذه المادة بعد.</li>`}</ul>
+          <form class="weekly-task-form" data-weekly-task-form="${item.id}"><input name="title" maxlength="80" required placeholder="اكتب مهمة جديدة"><button class="text-button" type="submit">+ إضافة مهمة</button></form>
+        </section>`;
+      }).join("") || `<p class="weekly-empty">لا توجد مواد في هذا اليوم.</p>`}</div>
     </article>`;
-  }).join("");
+  }).join("")}`;
 }
 
 // =========================
@@ -781,8 +839,13 @@ function renderOptions() {
 
   const weeklySubject = $("#weekly-subject");
   if (weeklySubject) {
-    weeklySubject.innerHTML = '<option value="">مهمة عامة</option>' +
-      data.subjects.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join("");
+    weeklySubject.innerHTML = '<option value="">اختر مادة من موادك</option>' +
+      data.subjects.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+    weeklySubject.disabled = !data.subjects.length;
+    const empty = $("#weekly-no-subjects");
+    if (empty) empty.hidden = !!data.subjects.length;
+    const submit = $("#weekly-submit");
+    if (submit) submit.disabled = !data.subjects.length;
   }
 }
 
@@ -1229,43 +1292,33 @@ document.addEventListener("click", e => {
     return;
   }
 
-  if (b.dataset.editWeekly) {
-    const item = data.weeklySchedule.find(x => x.id === b.dataset.editWeekly);
-    if (!item) return;
-    const form = $("#weekly-form");
-    form.querySelector('[name="id"]').value = item.id;
-    form.querySelector('[name="day"]').value = item.day;
-    form.querySelector('[name="subject"]').value = item.subject || "";
-    form.querySelector('[name="title"]').value = item.title;
-    form.querySelector('[name="time"]').value = item.time || "";
-    form.querySelector('[name="note"]').value = item.note || "";
-    $("#weekly-modal-title").textContent = "تعديل مهمة الجدول";
-    $("#weekly-modal").showModal();
-    return;
-  }
-
-  if (b.dataset.weeklyToggle) {
-    const item = data.weeklySchedule.find(x => x.id === b.dataset.weeklyToggle);
-    if (!item) return;
-    item.done = !item.done;
+  if (b.dataset.weeklyToggleTask) {
+    const [entryId, taskId] = b.dataset.weeklyToggleTask.split("|");
+    const entry = data.weeklySchedule.find(x => x.id === entryId);
+    const task = entry?.tasks.find(x => x.id === taskId);
+    if (!task) return;
+    task.done = !task.done;
     persist();
     return;
   }
 
-  if (b.dataset.deleteWeekly) {
-    data.weeklySchedule = data.weeklySchedule.filter(x => x.id !== b.dataset.deleteWeekly);
+  if (b.dataset.deleteWeeklyTask) {
+    const [entryId, taskId] = b.dataset.deleteWeeklyTask.split("|");
+    const entry = data.weeklySchedule.find(x => x.id === entryId);
+    if (!entry) return;
+    entry.tasks = entry.tasks.filter(x => x.id !== taskId);
     persist();
     return;
   }
 
-  if (b.dataset.copyWeekly) {
-    const item = data.weeklySchedule.find(x => x.id === b.dataset.copyWeekly);
-    if (!item) return;
-    openModal("weekly");
-    $("#weekly-form [name=title]").value = item.title;
-    $("#weekly-form [name=subject]").value = item.subject || "";
-    $("#weekly-form [name=time]").value = item.time || "";
-    $("#weekly-form [name=note]").value = item.note || "";
+  if (b.dataset.deleteWeeklySubject) {
+    data.weeklySchedule = data.weeklySchedule.filter(x => x.id !== b.dataset.deleteWeeklySubject);
+    persist();
+    return;
+  }
+
+  if (b.dataset.viewSubjects) {
+    showView("subjects");
     return;
   }
 
@@ -2070,26 +2123,31 @@ $("#task-form").onsubmit = e => {
 $("#weekly-form").onsubmit = e => {
   e.preventDefault();
   const f = new FormData(e.target);
-  const id = f.get("id");
-  const values = {
-    day: f.get("day"),
-    subject: f.get("subject") || "",
-    title: f.get("title").trim(),
-    time: f.get("time") || "",
-    note: f.get("note").trim()
-  };
-  if (!values.title) return;
+  const day = f.get("day");
+  const subjectId = f.get("subjectId");
+  if (!day || !subjectId) return;
+  const subject = data.subjects.find(x => x.id === subjectId);
+  if (!subject) return;
 
-  if (id) {
-    const item = data.weeklySchedule.find(x => x.id === id);
-    if (item) Object.assign(item, values);
-  } else {
-    data.weeklySchedule.push({ id: uid(), ...values, done: false });
+  if (!data.weeklySchedule.some(x => x.day === day && x.subjectId === subjectId)) {
+    data.weeklySchedule.push({ id: uid(), day, subjectId, tasks: [] });
   }
 
   $("#weekly-modal").close();
   persist();
 };
+
+document.addEventListener("submit", e => {
+  const form = e.target.closest("[data-weekly-task-form]");
+  if (!form) return;
+  e.preventDefault();
+  const entry = data.weeklySchedule.find(x => x.id === form.dataset.weeklyTaskForm);
+  const input = form.elements.title;
+  const title = input.value.trim();
+  if (!entry || !title) return;
+  entry.tasks.push({ id: uid(), title, done: false });
+  persist();
+});
 
 // =========================
 // نموذج تسجيل وقت الدراسة
