@@ -1,4 +1,16 @@
-import { load, save } from "./store.js";
+import { hydrateEnglish, load, save } from "./store.js";
+import { SubjectStudyEngine } from "./subject-study-engine.js";
+import { SmartStudyPlan } from "./smart-study-plan.js";
+
+window.addEventListener("sayi-save-error", () => {
+  const status = document.querySelector("#english-save-status");
+  if (status) { status.textContent = "تعذر الحفظ"; status.dataset.state = "error"; }
+  alert("تعذر حفظ البيانات. قد تكون مساحة التخزين ممتلئة؛ جرّب حذف نسخة كتاب قديمة أو استخدم متصفحًا آخر.");
+});
+window.addEventListener("sayi-saved", () => {
+  const status = document.querySelector("#english-save-status");
+  if (status) { status.textContent = "تم الحفظ"; status.dataset.state = "saved"; }
+});
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -17,6 +29,14 @@ const colors = {
 };
 
 let data = load();
+await hydrateEnglish(data);
+const staticContent = {};
+try {
+  const response = await fetch("./content/english/data.json");
+  if (response.ok) staticContent.english = await response.json();
+} catch (error) {
+  console.warn("Static English content is unavailable", error);
+}
 let activeView = "home";
 
 const uid = () =>
@@ -44,7 +64,25 @@ const weekDays = [
 function normalize() {
   data.subjects ??= [];
   data.tasks ??= [];
+  data.legacyTasks ??= [];
+  if (data.tasks.length) {
+    data.legacyTasks.push(...data.tasks);
+    data.tasks = [];
+    save(data);
+  }
   data.studyLog ??= [];
+  data.subjectState ??= {};
+  data.englishStudy ??= {
+    books: [],
+    activeSession: null,
+    dailyGoal: { minutes: 30, completed: 0, date: null },
+    activity: []
+  };
+  data.englishStudy.books ??= [];
+  data.englishStudy.pendingImport ??= null;
+  data.englishStudy.activity ??= [];
+  data.englishStudy.dailyGoal ??= { minutes: 30, completed: 0, date: null };
+  data.subjectState.english ??= { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [] };
   const validDays = new Set(weekDays.map(([key]) => key));
   const schedule = Array.isArray(data.weeklySchedule) ? data.weeklySchedule : [];
   const isNewSchedule = schedule.every(item => item && Array.isArray(item.tasks));
@@ -535,49 +573,48 @@ function subjectCard(s) {
 }
 
 // =========================
-// المهام
+// خطة الدراسة الذكية
 // =========================
 
-function renderTasks(target, empty) {
-  const el = $(target);
-  if (!el) return;
+function smartPlanState(subjectId = "english") {
+  const state = data.subjectState[subjectId] ??= { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [], smartPlan: {} };
+  state.smartPlan ??= {};
+  state.smartPlan.daily ??= { date: todayKey(), stage: "study", status: "open", subjectId };
+  state.smartPlan.weekly ??= { week: "", status: "locked" };
+  state.smartPlan.results ??= [];
+  return state.smartPlan;
+}
 
-  el.innerHTML = data.tasks.map(t => `
-    <li class="task-row ${t.done ? "done" : ""}">
-      <input
-        type="checkbox"
-        data-task="${t.id}"
-        ${t.done ? "checked" : ""}
-      >
-
-      <span>
-        ${esc(t.name)}
-
-        ${
-          t.subject
-            ? `
-              <small>
-                ${esc(t.subject)}
-                ${t.chapter ? ` · ${esc(t.chapter)}` : ""}
-                · ${esc(t.priority || "متوسطة")}
-              </small>
-            `
-            : ""
-        }
-      </span>
-
-      <button
-        class="delete"
-        data-delete-task="${t.id}"
-        aria-label="حذف المهمة"
-      >×</button>
-    </li>
-  `).join("");
-
-  const emptyEl = $(empty);
-  if (emptyEl) {
-    emptyEl.hidden = !!data.tasks.length;
+function buildSmartDailyPlan(subjectId = "english") {
+  const plan = smartPlanState(subjectId);
+  const engine = smartStudyEngine(subjectId);
+  const contentLesson = engine.buildDailyPlan();
+  const chapter = data.subjects.find(subject => subject.name.toLowerCase().includes(subjectId))?.chapters?.find(item => !item.lessons.every(lesson => lesson.done));
+  if (!plan.date || plan.date !== todayKey()) {
+    Object.assign(plan, { date: todayKey(), stage: "study", status: contentLesson.status, subjectId, lessonId: contentLesson.lessonId || null, chapterId: chapter?.id || null });
+    save(data);
   }
+  return plan;
+}
+
+function smartPlanStageLabel(stage) {
+  return { study: "دراسة الجزء", reading: "إنهاء القراءة", questions: "حل الأسئلة", quiz: "اختبار اليوم", result: "النتيجة" }[stage] || stage;
+}
+
+function renderSmartStudyPlan() {
+  const root = $("#smart-plan-content");
+  const home = $("#home-smart-plan-content");
+  if (!root && !home) return;
+  const plan = buildSmartDailyPlan("english");
+  const engine = subjectEngine("english");
+  const progress = engine.getProgress();
+  const reviews = engine.getOpenReviews();
+  const lesson = plan.lessonId ? engine.getLesson(plan.lessonId) : null;
+  const content = lesson || { title: "لا يوجد محتوى منظم بعد", unitTitle: "English", pages: {} };
+  const examMessage = plan.examMessage ? `<p class="smart-exam-message">${esc(plan.examMessage)}</p>` : "";
+  const markup = `<div class="smart-plan-card"><div class="section-head"><div><p class="eyebrow dark">Today</p><h3>خطة اليوم</h3><p class="english-muted">${esc(content.unitTitle || "English")} · ${esc(content.title)}</p></div><span class="smart-stage">${smartPlanStageLabel(plan.stage)}</span></div><div class="smart-plan-details"><span><small>المادة</small><b>English</b></span><span><small>الفصل</small><b>${esc(content.unitTitle || "غير محدد")}</b></span><span><small>الجزء</small><b>${content.pages ? `ص ${content.pages.from || "-"}–${content.pages.to || "-"}` : "يحتاج محتوى"}</b></span><span><small>الوقت</small><b>30 دقيقة</b></span></div><p class="english-muted">${lesson ? "بعد الدراسة: حل أسئلة هذا الجزء ثم ابدأ اختبار اليوم." : "أضف بيانات الكتاب والأسئلة إلى content/english/data.json لتوليد خطة فعلية."}</p><div class="smart-plan-actions">${lesson ? `<button class="primary" data-smart-action="complete-study">بدء الدراسة</button>` : ""}<button class="soft-button" data-smart-action="advance-stage">${plan.stage === "quiz" ? "فتح اختبار اليوم" : "تسجيل المرحلة"}</button></div></div><div class="smart-plan-sections"><section class="panel"><h3>اختبار اليوم</h3><p class="english-muted">يظهر بعد إكمال دراسة الجزء وحل أسئلته. الأسئلة مأخوذة من محتوى اليوم فقط.</p><button class="soft-button" data-smart-action="daily-quiz" ${plan.stage !== "quiz" ? "disabled" : ""}>اختبار اليوم</button>${plan.lastRequestedExam === "daily-quiz" ? examMessage : ""}</section><section class="panel"><h3>خطة الأسبوع</h3><p class="english-muted">تتجمع نتائج محتوى الأسبوع قبل فتح الاختبار الأسبوعي.</p><button class="soft-button" data-smart-action="weekly-quiz">اختبار الأسبوع</button>${plan.lastRequestedExam === "weekly-quiz" ? examMessage : ""}</section><section class="panel"><h3>اختبارات الفصول</h3><p class="english-muted">أسئلة الكتاب والتمارين، والأسئلة الوزارية فقط عند توفرها فعليًا.</p><button class="soft-button" data-smart-action="chapter-quiz">اختبار الفصل</button>${plan.lastRequestedExam === "chapter-quiz" ? examMessage : ""}</section><section class="panel"><h3>المراجعة</h3><p class="english-muted">${reviews.length ? `${reviews.length} موضوع يحتاج مراجعة.` : "لا توجد مراجعات مفتوحة."}</p><button class="soft-button" data-smart-action="reviews">فتح المراجعة</button></section></div><section class="panel smart-progress-panel"><h3>التقدم</h3><div class="subject-engine-progress"><span><small>المحاضرات</small><b>${progress.lectures}%</b></span><span><small>الكتاب</small><b>${progress.book}%</b></span><span><small>الخطة</small><b>${progress.tasks}%</b></span><span><small>الاختبارات</small><b>${progress.exams}%</b></span><span><small>الإتقان</small><b>${progress.mastery}%</b></span></div></section>`;
+  if (root) root.innerHTML = markup;
+  if (home) home.innerHTML = `<p class="english-muted">${lesson ? `English · ${esc(content.unitTitle || content.title)} · ${smartPlanStageLabel(plan.stage)}` : "لا توجد خطة منظمة بعد."}</p><button class="soft-button" data-view="smart-plan">فتح خطة الدراسة</button>`;
 }
 
 // =========================
@@ -607,8 +644,8 @@ function renderHome() {
   $("#subjects-count").textContent =
     data.subjects.length.toLocaleString("ar-IQ");
 
-  $("#tasks-count").textContent =
-    data.tasks.length.toLocaleString("ar-IQ");
+  $("#smart-plan-count").textContent =
+    (smartPlanState("english").status === "open" ? "١" : "٠");
 }
 
 // =========================
@@ -832,7 +869,8 @@ function renderOptions() {
       </option>
     `).join("");
 
-  $("#task-subject").innerHTML = options;
+  const taskSubject = $("#task-subject");
+  if (taskSubject) taskSubject.innerHTML = options;
 
   const studytimeSubject = $("#studytime-subject");
   if (studytimeSubject) studytimeSubject.innerHTML = options;
@@ -876,6 +914,309 @@ function renderHeroProgress() {
 }
 
 // =========================
+// English Smart Study
+// =========================
+
+const english = () => data.englishStudy;
+const englishToday = () => new Date().toLocaleDateString("en-CA");
+const englishModes = ["reading", "vocabulary", "writing", "memorization"];
+const englishCategories = ["Stories", "Composition", "Literature", "Passages", "Vocabulary", "Listening", "Memorization"];
+const subjectEngine = subjectId => new SubjectStudyEngine({
+  subjectId,
+  content: staticContent[subjectId] || { subjectId, units: [], questions: { book: [], exercises: [], ministry: [] } },
+  state: data.subjectState[subjectId] || (data.subjectState[subjectId] = { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [] }),
+  saveState: state => { data.subjectState[subjectId] = state; save(data); }
+});
+const smartStudyEngine = subjectId => new SmartStudyPlan({
+  subjectId,
+  chapters: data.subjects.find(subject => subject.name.toLowerCase().includes(subjectId))?.chapters || [],
+  content: staticContent[subjectId] || {},
+  state: data.subjectState[subjectId] || (data.subjectState[subjectId] = { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [] }),
+  saveState: state => { data.subjectState[subjectId] = state; save(data); }
+});
+
+function englishRecord(item, mode) {
+  item.progress ??= {};
+  item.progress[mode] ??= {
+    status: "New", masteryLevel: 0, lastReviewedAt: null,
+    nextReviewAt: null, reviewCount: 0, correctCount: 0, wrongCount: 0, intervalDays: 0
+  };
+  return item.progress[mode];
+}
+
+function englishAllSentences(book) {
+  return (book?.sections || []).flatMap(section => section.sentences || []);
+}
+
+function englishBookStats(book) {
+  const sentences = englishAllSentences(book);
+  const get = mode => sentences.filter(s => englishRecord(s, mode).status === "Mastered").length;
+  const due = sentences.filter(s => englishDue(s, "review") || englishDue(s, "memorization")).length;
+  return { total: sentences.length, reading: get("reading"), writing: get("writing"), vocabulary: get("vocabulary"), memorization: get("memorization"), due };
+}
+
+function englishDue(item, mode) {
+  const record = englishRecord(item, mode);
+  return record.nextReviewAt && record.nextReviewAt <= englishToday() && record.status !== "Mastered";
+}
+
+function englishSetReview(item, mode, correct) {
+  const record = englishRecord(item, mode);
+  const intervals = [1, 3, 7, 14];
+  record.lastReviewedAt = new Date().toISOString();
+  record.reviewCount += 1;
+  record[correct ? "correctCount" : "wrongCount"] += 1;
+  record.masteryLevel = correct ? Math.min(record.masteryLevel + 1, 5) : Math.max(record.masteryLevel - 1, 0);
+  record.status = correct ? (record.masteryLevel >= 5 ? "Mastered" : "Learning") : "Review";
+  record.intervalDays = correct ? intervals[Math.min(record.masteryLevel - 1, intervals.length - 1)] || 14 : 1;
+  const next = new Date();
+  next.setDate(next.getDate() + record.intervalDays);
+  record.nextReviewAt = next.toLocaleDateString("en-CA");
+}
+
+function englishCategory(text) {
+  const value = text.toLowerCase();
+  if (/literature focus|pride and prejudice|as you like it|shakespeare/.test(value)) return "Literature";
+  if (/composition|essay|write about|paragraph/.test(value)) return "Composition";
+  if (/vocabulary|new words|word study|meaning/.test(value)) return "Vocabulary";
+  if (/listen|listening|audio|conversation/.test(value)) return "Listening";
+  if (/memorization|memorise|memorize|learn by heart/.test(value)) return "Memorization";
+  if (/story|tale|chapter|once upon|character/.test(value)) return "Stories";
+  if (/reading|passage|read the following|text/.test(value)) return "Passages";
+  return "Unclassified";
+}
+
+function englishSentences(text) {
+  return text.replace(/\r/g, "").split(/(?<=[.!?])\s+(?=[A-Z0-9"'])|\n{2,}/).map(x => x.replace(/\s+/g, " ").trim()).filter(x => x.length > 2);
+}
+
+function englishWordDiff(expected, actual) {
+  const clean = value => value.toLowerCase().replace(/[.,!?;:'"“”()\[\]]/g, "").split(/\s+/).filter(Boolean);
+  const source = clean(expected); const answer = clean(actual);
+  const missing = source.filter((word, index) => answer[index] !== word);
+  const extra = answer.filter((word, index) => source[index] !== word);
+  const correct = source.filter((word, index) => answer[index] === word).length;
+  return { correct, total: source.length, missing, extra, exact: correct === source.length && source.length === answer.length };
+}
+
+function englishBookFromText(name, text) {
+  const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const sections = [];
+  let current = { id: uid(), title: "Imported passage", category: englishCategory(text), page: 1, sourceText: text, sentences: englishSentences(text).map(sentence => ({ id: uid(), text: sentence, progress: {} })) };
+  const title = lines.find(line => line.length > 3 && line.length < 100) || name.replace(/\.[^.]+$/, "");
+  current.title = title;
+  sections.push(current);
+  return { id: uid(), title: name.replace(/\.[^.]+$/, ""), sourceName: name, importedAt: new Date().toISOString(), sections, sourceHash: `${name}:${text.length}:${text.slice(0, 120)}` };
+}
+
+function englishProgress(message, percent, detail = "") {
+  const panel = $("#english-import-progress");
+  const label = $("#english-import-progress-label");
+  const bar = $("#english-import-progress-bar");
+  if (!panel || !label || !bar) return;
+  panel.hidden = false;
+  label.textContent = `${message}${detail ? ` · ${detail}` : ""} ${Math.round(percent)}%`;
+  bar.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
+}
+
+function cleanOcrPages(pages) {
+  const counts = new Map();
+  pages.forEach(page => {
+    const lines = page.text.split(/\r?\n/).map(line => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+    page.lines = lines;
+    [...new Set(lines)].forEach(line => counts.set(line, (counts.get(line) || 0) + 1));
+  });
+  const repeated = new Set([...counts].filter(([, count]) => count >= Math.max(2, Math.ceil(pages.length * 0.3))).map(([line]) => line));
+  return pages.map(page => {
+    const lines = page.lines.filter(line => !/^page\s*\d+$/i.test(line) && !/^\d{1,4}$/.test(line) && !repeated.has(line));
+    return { ...page, text: lines.join(" ").replace(/\s+/g, " ").trim() };
+  });
+}
+
+function englishBookFromPages(name, pages, ocrIssues = []) {
+  const cleaned = cleanOcrPages(pages).filter(page => page.text.length > 2);
+  const sections = cleaned.map(page => {
+    const lines = page.text.split(/(?<=[.!?])\s+/);
+    const title = lines[0]?.length < 100 ? lines[0] : `Page ${page.page}`;
+    return {
+      id: uid(), title, category: englishCategory(page.text), page: page.page,
+      sourceText: page.text,
+      sentences: englishSentences(page.text).map(sentence => ({ id: uid(), text: sentence, page: page.page, progress: {} }))
+    };
+  });
+  const fullText = cleaned.map(page => `Page ${page.page}\n${page.text}`).join("\n\n");
+  return { id: uid(), title: name.replace(/\.[^.]+$/, ""), sourceName: name, importedAt: new Date().toISOString(), sections, sourceHash: `${name}:${fullText.length}:${fullText.slice(0, 120)}`, ocr: true, ocrIssues };
+}
+
+async function englishRenderCanvas(page, rotation, variant) {
+  const base = page.getViewport({ scale: 1, rotation });
+  const scale = Math.min(3.2, Math.max(2.2, 2200 / Math.max(base.width, base.height)));
+  const viewport = page.getViewport({ scale, rotation });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  await page.render({ canvasContext: context, viewport }).promise;
+  if (variant === "color") return canvas;
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let index = 0; index < image.data.length; index += 4) {
+    const gray = image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114;
+    const contrasted = Math.max(0, Math.min(255, (gray - 128) * 1.65 + 128));
+    const value = variant === "threshold" ? (contrasted > 178 ? 255 : 0) : contrasted;
+    image.data[index] = value; image.data[index + 1] = value; image.data[index + 2] = value;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+async function englishOcrPage(page, worker) {
+  const baseRotation = Number(page.rotate || 0) % 360;
+  const probe = page.getViewport({ scale: 1, rotation: baseRotation });
+  const rotations = probe.width > probe.height * 1.35 ? [baseRotation, (baseRotation + 90) % 360] : [baseRotation];
+  const attempts = [
+    { variant: "gray", psm: "6" },
+    { variant: "threshold", psm: "6" },
+    { variant: "gray", psm: "3" },
+    { variant: "color", psm: "11" }
+  ];
+  let best = { text: "", confidence: 0, rotation: baseRotation, variant: "gray" };
+  for (const rotation of rotations) {
+    for (const attempt of attempts) {
+      try {
+        await worker.setParameters({ tessedit_pageseg_mode: attempt.psm, preserve_interword_spaces: "1" });
+        const canvas = await englishRenderCanvas(page, rotation, attempt.variant);
+        const result = await worker.recognize(canvas);
+        const text = (result.data.text || "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+        const confidence = Number(result.data.confidence) || 0;
+        const letters = (text.match(/[A-Za-z]/g) || []).length;
+        const score = letters + confidence * 0.8;
+        const bestScore = (best.text.match(/[A-Za-z]/g) || []).length + best.confidence * 0.8;
+        if (score > bestScore) best = { text, confidence, rotation, variant: attempt.variant };
+        if (letters >= 40 && confidence >= 65) return best;
+      } catch (error) {
+        console.warn("OCR attempt failed", { rotation, variant: attempt.variant, error });
+      }
+      await new Promise(resolve => requestAnimationFrame(resolve));
+    }
+  }
+  return best;
+}
+
+async function englishExtractPdf(file) {
+  const pdfjs = await import("./pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.min.mjs";
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  englishProgress("Reading PDF", 5);
+  for (let index = 1; index <= pdf.numPages; index++) {
+    const page = await pdf.getPage(index);
+    const content = await page.getTextContent();
+    pages.push({ page: index, text: content.items.map(item => item.str).join(" ").replace(/\s+/g, " ").trim(), pdfPage: page });
+    englishProgress("Extracting text", 5 + index / pdf.numPages * 25, `${index} / ${pdf.numPages}`);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+  }
+  const emptyPages = pages.filter(page => page.text.replace(/\s/g, "").length < 40);
+  const ocrIssues = [];
+  if (emptyPages.length) {
+    if (!globalThis.Tesseract) throw new Error("OCR engine is not available. Make sure the app is opened through the local server.");
+    englishProgress(`OCR English (${emptyPages.length} pages)`, 32, `0 / ${emptyPages.length}`);
+    const asset = name => new URL(name, location.href).href;
+    const languagePath = new URL("./", location.href).href;
+    const worker = await Tesseract.createWorker("eng", 1, { workerPath: asset("tesseract.worker.min.js"), corePath: asset("tesseract-core.wasm.js"), langPath: languagePath, logger: message => { if (message.status === "recognizing text") englishProgress("OCR English", 32 + (message.progress || 0) * 55); } });
+    try {
+      for (let index = 0; index < emptyPages.length; index++) {
+        try {
+          const result = await englishOcrPage(emptyPages[index].pdfPage, worker);
+          emptyPages[index].text = result.text;
+          emptyPages[index].ocrConfidence = result.confidence;
+          emptyPages[index].ocrVariant = result.variant;
+          if (result.text.replace(/\s/g, "").length < 20 || result.confidence < 35) {
+            ocrIssues.push({ page: emptyPages[index].page, confidence: Math.round(result.confidence), reason: "Low OCR confidence" });
+          }
+        } catch (error) {
+          console.warn("OCR page failed", emptyPages[index].page, error);
+          ocrIssues.push({ page: emptyPages[index].page, confidence: 0, reason: "OCR failed after alternate attempts" });
+          emptyPages[index].text = "";
+        }
+        englishProgress("OCR English", 32 + (index + 1) / emptyPages.length * 55, `${index + 1} / ${emptyPages.length}`);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    } finally { await worker.terminate(); }
+  }
+  const usable = pages.filter(page => page.text.replace(/\s/g, "").length > 2);
+  if (!usable.length) throw new Error("OCR could not read any page. The PDF may be very low-resolution, blank, encrypted, or contain no readable English characters.");
+  englishProgress("Cleaning and classifying", 92);
+  const book = englishBookFromPages(file.name, usable, ocrIssues);
+  englishProgress("Ready for review", 100);
+  return book;
+}
+
+function renderEnglishDashboard() {
+  const root = $("#english-dashboard"); if (!root) return;
+  const books = english().books;
+  const sentences = books.flatMap(englishAllSentences);
+  const mastered = sentences.filter(s => englishRecord(s, "memorization").status === "Mastered").length;
+  const due = sentences.filter(s => englishDue(s, "writing") || englishDue(s, "vocabulary")).length;
+  const last = english().activity[0];
+  const goal = english().dailyGoal;
+  const dayProgress = goal.date === englishToday() ? goal.completed : 0;
+  const overallProgress = sentences.length ? Math.round(mastered / sentences.length * 100) : 0;
+  const pendingWarning = english().pendingImport?.ocrIssues?.length ? `<div class="english-ocr-warning"><strong>Needs Review</strong><p>${english().pendingImport.ocrIssues.length} page(s) have low OCR confidence.</p><small>Pages: ${english().pendingImport.ocrIssues.map(issue => `${issue.page} (${issue.confidence}%)`).join(", ")}</small></div>` : "";
+  root.innerHTML = `<section class="panel english-dashboard"><div class="section-head"><div><p class="eyebrow dark">English Learning</p><h2>English Smart Study</h2><p>جلسة قصيرة مبنية على ما يحتاج إلى مراجعة.</p></div><strong class="english-score">${overallProgress}%</strong></div><div class="english-study-grid"><div><strong>Today's Study</strong><div class="english-time-row"><span>Reading</span><b>8 min</b></div><div class="english-time-row"><span>Vocabulary</span><b>7 min</b></div><div class="english-time-row"><span>Writing</span><b>8 min</b></div><div class="english-time-row"><span>Review</span><b>7 min</b></div></div><div><strong>Daily Goal</strong><div class="progress"><span style="width:${Math.min(Math.round(dayProgress / Math.max(goal.minutes, 1) * 100), 100)}%"></span></div><p class="english-muted">${dayProgress} / ${goal.minutes} minutes</p><p class="english-muted">${due} items due · ${sentences.length - mastered} remaining</p></div></div><div class="english-actions"><button class="primary" data-english-action="start">Start Today's Study</button>${english().activeSession ? `<button class="soft-button" data-english-action="continue">Continue Study</button>` : ""}<button class="soft-button" data-english-action="mistakes">Review Mistakes</button></div><p class="english-muted">Last studied: ${esc(last?.title || "Nothing yet")}</p></section>${english().pendingImport ? `<section class="panel english-import-review"><div class="section-head"><div><h2>Review imported content</h2><p class="english-muted">Select a category before saving this book.</p>${pendingWarning}</div><button class="icon-button" data-english-action="discard-import">×</button></div>${english().pendingImport.sections.map((section, index) => `<div class="english-review-row"><div><strong>${esc(section.title)}</strong><small>Page ${section.page} · ${section.sentences.length} sentences</small></div><select data-english-category="${index}"><option value="Unclassified">Unclassified</option>${englishCategories.map(category => `<option value="${category}" ${section.category === category ? "selected" : ""}>${category}</option>`).join("")}</select></div>`).join("")}<button class="primary" data-english-action="confirm-import">Import</button></section>` : ""}`;
+}
+
+function renderEnglishBooks() {
+  const root = $("#english-books"); if (!root) return;
+  root.innerHTML = english().books.length ? `<div class="section-head"><h2>Your English content</h2><span class="english-muted">${english().books.length} book(s)</span></div>${english().books.map(book => { const stats = englishBookStats(book); const progress = stats.total ? Math.round(stats.memorization / stats.total * 100) : 0; const categories = [...new Set(book.sections.map(section => section.category))]; return `<article class="english-book panel"><div><p class="eyebrow dark">${esc(book.sourceName || "Imported book")}</p><h3>${esc(book.title)}</h3><p>${stats.total} sentences · ${progress}% mastered</p><div class="english-tags">${categories.map(category => `<span>${esc(category)}</span>`).join("")}</div></div><div class="progress"><span style="width:${progress}%"></span></div><div class="english-actions"><button class="primary" data-english-book="${book.id}">Study book</button><button class="soft-button" data-english-review-book="${book.id}">Details</button></div></article>`; }).join("")}` : `<section class="panel english-empty"><h3>ابدأ من هنا</h3><p>ثلاث خطوات بسيطة لتحويل كتابك إلى تدريب:</p><ol class="english-steps"><li><strong>ارفع الكتاب</strong><span>اضغط Import English Book واختر PDF، حتى لو كان مصوّرًا.</span></li><li><strong>راجع التصنيف</strong><span>عدّل Stories أو Literature أو غيرها قبل الحفظ.</span></li><li><strong>ابدأ الدراسة</strong><span>اقرأ، استمع، اكتب من الذاكرة، ثم راجع أخطاءك.</span></li></ol><p class="english-muted">يتم تشغيل OCR للصفحات المصوّرة محليًا، وقد يستغرق الكتاب الكبير وقتًا أطول.</p></section>`;
+}
+
+function renderEnglishEngineSummary() {
+  const root = $("#english-engine-summary");
+  if (!root) return;
+  const engine = subjectEngine("english");
+  const progress = engine.getProgress();
+  const next = engine.getNextItem();
+  const reviews = engine.getOpenReviews();
+  const ready = staticContent.english?.units?.length > 0;
+  root.innerHTML = `<section class="panel subject-engine-panel"><div class="section-head"><div><p class="eyebrow dark">Subject Study Engine</p><h3>Study pathway</h3><p class="english-muted">${ready ? "Prepared English content is available." : "أضف محتوى الكتاب المنظم إلى content/english/data.json لتفعيل الوحدات والأسئلة والاختبارات."}</p></div><strong class="english-score">${progress.mastery}%</strong></div><div class="subject-engine-progress"><span><small>Lectures</small><b>${progress.lectures}%</b></span><span><small>Book</small><b>${progress.book}%</b></span><span><small>Tasks</small><b>${progress.tasks}%</b></span><span><small>Exams</small><b>${progress.exams}%</b></span><span><small>Mastery</small><b>${progress.mastery}%</b></span></div><p class="english-muted">${next ? `Next lesson: ${esc(next.title)}` : "No structured lesson is loaded yet."} · ${reviews.length} review task(s)</p></section>`;
+}
+
+function renderEnglishStudy() { renderEnglishDashboard(); renderEnglishBooks(); renderEnglishEngineSummary(); }
+
+function englishStart(book, sectionIndex = 0, sentenceIndex = 0, mode = "reading") {
+  const section = book.sections[sectionIndex];
+  const sentence = section?.sentences[sentenceIndex];
+  if (!sentence) return;
+  english().activeSession = { bookId: book.id, sectionIndex, sentenceIndex, mode, updatedAt: new Date().toISOString() };
+  english().activity.unshift({ id: uid(), title: section.title, mode, at: new Date().toISOString() });
+  english().activity = english().activity.slice(0, 20);
+  save(data); renderEnglishSession(book);
+}
+
+function englishSessionBook() { return english().books.find(book => book.id === english().activeSession?.bookId); }
+
+function renderEnglishSession(book = englishSessionBook()) {
+  const root = $("#english-session"); if (!root || !book || !english().activeSession) return;
+  const state = english().activeSession;
+  const section = book.sections[state.sectionIndex];
+  const sentence = section?.sentences[state.sentenceIndex];
+  if (!sentence) return;
+  root.hidden = false;
+  const mode = state.mode;
+  const reading = mode === "reading";
+  const writing = mode === "writing";
+  const hidden = mode === "memorization";
+  const record = englishRecord(sentence, mode === "memorization" ? "memorization" : mode);
+  root.innerHTML = `<div class="section-head"><div><p class="eyebrow dark">${esc(mode)} · ${esc(book.title)}</p><h2>${esc(section.title)}</h2></div><button class="icon-button" data-english-action="close-session" aria-label="Close">×</button></div><p class="english-muted">Sentence ${state.sentenceIndex + 1} / ${section.sentences.length} · ${record.status} · Level ${record.masteryLevel}/5</p>${reading ? `<div class="english-sentence">${esc(sentence.text)}</div><div class="english-actions"><button class="soft-button" data-english-action="listen">🔊 Listen</button><button class="soft-button" data-english-action="record">🎙 Record pronunciation</button></div>` : writing ? `<p class="english-prompt">Write the sentence from memory</p><button class="soft-button" data-english-action="reveal">Show sentence</button><div class="english-sentence ${state.revealed ? "" : "english-hidden"}">${esc(sentence.text)}</div><form class="english-writing-form" data-english-writing><textarea name="answer" rows="4" required placeholder="Type the sentence..."></textarea><button class="primary" type="submit">Check</button></form>${state.feedback ? `<div class="english-feedback ${state.feedback.exact ? "good" : "needs-review"}"><strong>Correct words: ${state.feedback.correct} / ${state.feedback.total}</strong><p>${state.feedback.exact ? "Excellent recall." : `Missing: ${esc(state.feedback.missing.join(", ") || "none")} · Extra: ${esc(state.feedback.extra.join(", ") || "none")}`}</p></div>` : ""}` : `<p class="english-prompt">Memorization level ${record.masteryLevel + 1}</p><div class="english-sentence ${record.masteryLevel > 1 ? "english-hidden-words" : ""}">${esc(record.masteryLevel >= 4 ? "Recall the sentence without looking." : sentence.text)}</div><button class="primary" data-english-action="memorize-check">I recalled it</button>`}<div class="english-session-nav"><button class="soft-button" data-english-action="previous" ${state.sentenceIndex === 0 ? "disabled" : ""}>Previous</button><button class="soft-button" data-english-action="next">Next</button>${reading ? `<button class="primary" data-english-action="writing">Writing</button>` : writing ? `<button class="primary" data-english-action="memorization">Memorization</button>` : ""}</div><p class="english-muted">Mastered: ${englishAllSentences(book).filter(item => englishRecord(item, "memorization").status === "Mastered").length} · Review: ${englishAllSentences(book).filter(item => englishDue(item, "memorization")).length}</p>`;
+}
+
+function englishReviewMistakes() {
+  const root = $("#english-review"); if (!root) return;
+  const items = english().books.flatMap(book => englishAllSentences(book).map(sentence => ({ ...sentence, book }))).filter(item => englishDue(item, "writing") || englishDue(item, "memorization") || englishRecord(item, "writing").status === "Review");
+  root.hidden = false;
+  root.innerHTML = `<div class="section-head"><h2>Mistakes</h2><button class="icon-button" data-english-action="close-review">×</button></div><p>${items.length} sentences need review</p>${items.length ? `<ul class="english-mistake-list">${items.map(item => `<li><span>${esc(item.text)}</span><button class="soft-button" data-english-book="${item.book.id}">Review</button></li>`).join("")}</ul>` : `<p class="english-muted">Nothing needs review today.</p>`}`;
+}
+
+// =========================
 // الرسم الرئيسي
 // =========================
 
@@ -895,14 +1236,14 @@ function render() {
         ? "يومان"
         : `${arabicNumber(streak)} أيام`;
 
-  renderTasks("#tasks", "#no-tasks");
-  renderTasks("#tasks-full", "#no-tasks-full");
-
   renderHome();
   renderSubjects();
   renderWeekly();
   renderStats();
   renderOptions();
+  renderSmartStudyPlan();
+  renderEnglishStudy();
+  if (english().activeSession) renderEnglishSession();
 
   showView(activeView);
 }
@@ -932,9 +1273,10 @@ function showView(view) {
   $("#page-title").textContent = {
     home: "مرحبًا، طالب السَعي 👋",
     subjects: "موادك الدراسية",
-    tasks: "مهامك",
+    "smart-plan": "خطة الدراسة الذكية",
     weekly: "الجدول الأسبوعي",
-    stats: "تقدّمك"
+    stats: "تقدّمك",
+    english: "English Smart Study"
   }[view] || "سَعي";
 
   if (previousView !== view) {
@@ -1286,6 +1628,63 @@ document.addEventListener("click", e => {
     return;
   }
 
+  if (b.dataset.englishAction) {
+    const action = b.dataset.englishAction;
+    const book = englishSessionBook();
+    const state = english().activeSession;
+    if (action === "start" || action === "continue") {
+      const target = action === "continue" && book ? book : english().books[0];
+      if (target) englishStart(target, state?.sectionIndex || 0, state?.sentenceIndex || 0, state?.mode || "reading");
+      else $("#english-book-input")?.click();
+      return;
+    }
+    if (action === "discard-import") { english().pendingImport = null; save(data); renderEnglishStudy(); return; }
+    if (action === "confirm-import") {
+      const pending = english().pendingImport;
+      if (!pending || pending.sections.some(section => !englishCategories.includes(section.category))) { alert("Choose a category for every section before importing."); return; }
+      english().books.push(pending); english().pendingImport = null; save(data); renderEnglishStudy(); return;
+    }
+    if (action === "mistakes") { englishReviewMistakes(); return; }
+    if (action === "close-review") { $("#english-review").hidden = true; return; }
+    if (!book || !state) return;
+    const section = book.sections[state.sectionIndex];
+    const sentence = section?.sentences[state.sentenceIndex];
+    if (action === "close-session") { english().activeSession = null; save(data); $("#english-session").hidden = true; renderEnglishStudy(); return; }
+    if (action === "listen") {
+      if (!("speechSynthesis" in window)) { alert("Speech synthesis is not available on this device."); return; }
+      speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(sentence.text); utterance.lang = "en-US"; speechSynthesis.speak(utterance); return;
+    }
+    if (action === "record") { alert("Recording is available when MediaRecorder is supported. Pronunciation scoring is not provided."); return; }
+    if (action === "reveal") { state.revealed = true; renderEnglishSession(book); return; }
+    if (action === "writing" || action === "memorization") { state.mode = action; state.feedback = null; save(data); renderEnglishSession(book); return; }
+    if (action === "memorize-check") { englishSetReview(sentence, "memorization", true); state.mode = "memorization"; save(data); renderEnglishSession(book); renderEnglishDashboard(); return; }
+    if (action === "previous" || action === "next") { state.sentenceIndex = Math.max(0, Math.min(section.sentences.length - 1, state.sentenceIndex + (action === "next" ? 1 : -1))); state.updatedAt = new Date().toISOString(); state.feedback = null; state.revealed = false; save(data); renderEnglishSession(book); }
+    return;
+  }
+
+  if (b.dataset.smartAction) {
+    const plan = smartPlanState("english");
+    const smartEngine = smartStudyEngine("english");
+    if (b.dataset.smartAction === "complete-study") smartEngine.completeStudyStage("study");
+    if (b.dataset.smartAction === "advance-stage") smartEngine.completeStudyStage(plan.stage);
+    if (["daily-quiz", "weekly-quiz", "chapter-quiz"].includes(b.dataset.smartAction)) {
+      plan.lastRequestedExam = b.dataset.smartAction;
+      plan.stage = "quiz";
+      plan.availableQuestions = smartEngine.getQuestions(b.dataset.smartAction.replace("-quiz", ""));
+      if (!plan.availableQuestions.length) plan.examMessage = "لا توجد أسئلة منظمة مضافة لهذا الاختبار بعد.";
+    }
+    if (b.dataset.smartAction === "reviews") plan.reviewOpenedAt = new Date().toISOString();
+    save(data);
+    renderSmartStudyPlan();
+    return;
+  }
+
+  if (b.dataset.englishBook || b.dataset.englishReviewBook) {
+    const book = english().books.find(item => item.id === (b.dataset.englishBook || b.dataset.englishReviewBook));
+    if (book) englishStart(book);
+    return;
+  }
+
   if (b.dataset.openWeeklyDay) {
     openModal("weekly");
     $("#weekly-form [name=day]").value = b.dataset.openWeeklyDay;
@@ -1453,18 +1852,6 @@ document.addEventListener("click", e => {
 
     openModal("lesson");
 
-    return;
-  }
-
-  // حذف مهمة
-  if (b.dataset.deleteTask) {
-
-    data.tasks =
-      data.tasks.filter(
-        x => x.id !== b.dataset.deleteTask
-      );
-
-    persist();
     return;
   }
 
@@ -1650,29 +2037,27 @@ if (b.dataset.completeChapter) {
 
 document.addEventListener("change", e => {
 
-  // المهمة
-  if (e.target.dataset.task) {
+  if (e.target.id === "english-book-input") {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const input = e.target;
+    input.disabled = true;
+    input.parentElement.firstChild.textContent = "Reading PDF...";
+    (async () => {
+      try {
+        const book = file.type === "text/plain" ? englishBookFromText(file.name, await file.text()) : await englishExtractPdf(file);
+        const duplicate = english().books.find(item => item.sourceHash === book.sourceHash);
+        if (duplicate) { alert("Already imported. The existing book was kept."); return; }
+        english().pendingImport = book; save(data); renderEnglishStudy();
+      } catch (error) { alert(error.message || "The book could not be read."); }
+      finally { input.disabled = false; input.value = ""; input.parentElement.firstChild.textContent = "Import English Book"; const progress = $("#english-import-progress"); if (progress) progress.hidden = true; }
+    })();
+    return;
+  }
 
-    const task =
-      data.tasks.find(
-        t => t.id === e.target.dataset.task
-      );
-
-    if (!task) return;
-
-    task.done =
-      e.target.checked;
-
-    // حفظ فقط بدون render
+  if (e.target.dataset.englishCategory && english().pendingImport) {
+    english().pendingImport.sections[Number(e.target.dataset.englishCategory)].category = e.target.value;
     save(data);
-
-    e.target
-      .closest(".task-row")
-      ?.classList.toggle(
-        "done",
-        task.done
-      );
-
     return;
   }
 
@@ -2093,33 +2478,6 @@ $("#subject-form").onsubmit = e => {
 // نموذج المهمة
 // =========================
 
-$("#task-form").onsubmit = e => {
-
-  e.preventDefault();
-
-  const f =
-    new FormData(e.target);
-
-  data.tasks.unshift({
-    id: uid(),
-    name: f.get("name").trim(),
-    subject: f.get("subject"),
-    chapter: f.get("chapter").trim(),
-    date: f.get("date"),
-    duration:
-      +f.get("duration") || 0,
-    priority:
-      f.get("priority"),
-    done: false
-  });
-
-  e.target.reset();
-
-  $("#task-modal").close();
-
-  persist();
-};
-
 $("#weekly-form").onsubmit = e => {
   e.preventDefault();
   const f = new FormData(e.target);
@@ -2138,6 +2496,16 @@ $("#weekly-form").onsubmit = e => {
 };
 
 document.addEventListener("submit", e => {
+  if (e.target.matches("[data-english-writing]")) {
+    e.preventDefault();
+    const book = englishSessionBook(); const state = english().activeSession;
+    const sentence = book?.sections[state.sectionIndex]?.sentences[state.sentenceIndex];
+    if (!sentence) return;
+    state.feedback = englishWordDiff(sentence.text, new FormData(e.target).get("answer"));
+    englishSetReview(sentence, "writing", state.feedback.exact || state.feedback.correct / Math.max(state.feedback.total, 1) >= 0.8);
+    state.updatedAt = new Date().toISOString(); save(data); renderEnglishSession(book); renderEnglishDashboard();
+    return;
+  }
   const form = e.target.closest("[data-weekly-task-form]");
   if (!form) return;
   e.preventDefault();

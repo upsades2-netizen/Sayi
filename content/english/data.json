@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "subjectId": "english",
+  "title": "English",
+  "language": "en",
+  "units": [],
+  "contentTypes": [
+    "stories",
+    "composition",
+    "literature",
+    "reading",
+    "vocabulary",
+    "grammar",
+    "listening",
+    "exercises",
+    "memorization"
+  ],
+  "questions": {
+    "book": [],
+    "exercises": [],
+    "ministry": []
+  }
+}
