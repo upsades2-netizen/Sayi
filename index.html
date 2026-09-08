@@ -17,7 +17,7 @@
 <body>
     <aside class="sidebar"><a class="brand" href="#home" aria-label="سَعي | رفيقك الدراسي"><img class="brand-logo" src="./saai-logo.svg" alt="شعار سعي"><span>سَعي<small>رفيقك الدراسي</small></span></a>
         <nav><button class="nav-item active" data-view="home">⌂ <span>الرئيسية</span></button><button class="nav-item"
-            data-view="subjects">▦ <span>المواد</span></button><button class="nav-item" data-view="english">◎ <span>English Smart Study</span></button><button class="nav-item" data-view="smart-plan">🧠
+            data-view="subjects">▦ <span>المواد</span></button><button class="nav-item" data-view="books">▤ <span>الكتب</span></button><button class="nav-item" data-view="smart-plan">🧠
             <span>خطة الدراسة الذكية</span></button><button class="nav-item" data-view="weekly">▤
             <span>الجدول الأسبوعي</span></button><button class="nav-item" data-view="stats">◔
             <span>الإحصائيات</span></button></nav>
@@ -141,22 +141,21 @@
                 </section>
                 <section id="global-plan"></section>
             </section>
-            <section id="english-view" class="view">
-                <div class="section-head page-head english-page-head">
-                    <div><p class="eyebrow dark">English Learning</p><h2>English Smart Study</h2><p>ارفع كتابك، راجع تصنيفه، ثم ابدأ جلسة قصيرة خطوة بخطوة.</p><small id="english-save-status" class="english-save-status" role="status">جاهز للحفظ</small></div>
-                    <label class="english-import-button">Import English Book<input id="english-book-input" type="file" accept="application/pdf,.txt" hidden></label>
-                    <div id="english-import-progress" class="english-import-progress" hidden><strong id="english-import-progress-label">Preparing...</strong><span><i id="english-import-progress-bar"></i></span></div>
-                </div>
-                <section id="english-dashboard"></section>
-                <section id="english-engine-summary"></section>
-                <section id="english-books" class="english-books"></section>
-                <section id="english-review" class="panel english-review-panel" hidden></section>
-                <section id="english-session" class="panel english-session-panel" hidden></section>
+            <section id="books-view" class="view">
+                    <div class="section-head page-head books-page-head">
+                        <div><p class="eyebrow dark">مكتبتي</p><h2>كتبي</h2><p>أضف ملفات PDF واحتفظ بها محلياً لفتحها وقت الدراسة.</p></div>
+                        <label class="primary books-add-button">＋ إضافة كتاب<input id="book-input" type="file" accept=".pdf,application/pdf" hidden></label>
+                    </div>
+                    <section id="books-list" class="books-list" aria-live="polite"></section>
+                    <section id="pdf-viewer" class="panel pdf-viewer" hidden>
+                        <div class="section-head"><div><p class="eyebrow dark">عارض PDF</p><h2 id="pdf-viewer-title">الكتاب</h2></div><button type="button" class="soft-button" data-book-action="close-viewer">إغلاق</button></div>
+                        <iframe id="pdf-frame" title="عارض PDF" loading="lazy"></iframe>
+                    </section>
             </section>
         </main>
     </div>
         <nav class="bottom-nav"><button class="nav-item active" data-view="home">⌂<span>الرئيسية</span></button><button
-            class="nav-item" data-view="subjects">▦<span>المواد</span></button><button class="nav-item" data-view="english">◎<span>English</span></button><button class="nav-item" data-view="smart-plan">🧠<span>الخطة</span></button><button class="add-fab"
+            class="nav-item" data-view="subjects">▦<span>المواد</span></button><button class="nav-item" data-view="books">▤<span>الكتب</span></button><button class="nav-item" data-view="smart-plan">🧠<span>الخطة</span></button><button class="add-fab"
             data-open="subject" aria-label="إضافة مادة">+</button><button class="nav-item"
             data-view="weekly">▤<span>الجدول</span></button><button class="nav-item"
             data-view="stats">◔<span>الإحصائيات</span></button></nav>
@@ -294,7 +293,6 @@
     });
 })();
 </script>
-    <script src="./tesseract.min.js?v=1"></script>
     <script type="module" src="./app.js?v=22"></script>
 </body>
 

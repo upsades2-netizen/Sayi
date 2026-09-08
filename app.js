@@ -1,16 +1,8 @@
-import { hydrateEnglish, load, save } from "./store.js";
+import { addBook, getBookFile, listBooks, load, removeBook, save } from "./store.js";
 import { SubjectStudyEngine } from "./subject-study-engine.js";
 import { SmartStudyPlan } from "./smart-study-plan.js";
 
-window.addEventListener("sayi-save-error", () => {
-  const status = document.querySelector("#english-save-status");
-  if (status) { status.textContent = "تعذر الحفظ"; status.dataset.state = "error"; }
-  alert("تعذر حفظ البيانات. قد تكون مساحة التخزين ممتلئة؛ جرّب حذف نسخة كتاب قديمة أو استخدم متصفحًا آخر.");
-});
-window.addEventListener("sayi-saved", () => {
-  const status = document.querySelector("#english-save-status");
-  if (status) { status.textContent = "تم الحفظ"; status.dataset.state = "saved"; }
-});
+window.addEventListener("sayi-save-error", () => alert("تعذر حفظ البيانات. قد تكون مساحة التخزين ممتلئة؛ جرّب حذف بعض البيانات أو استخدم متصفحًا آخر."));
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -29,14 +21,8 @@ const colors = {
 };
 
 let data = load();
-await hydrateEnglish(data);
-const staticContent = {};
-try {
-  const response = await fetch("./content/english/data.json");
-  if (response.ok) staticContent.english = await response.json();
-} catch (error) {
-  console.warn("Static English content is unavailable", error);
-}
+let books = [];
+let activeBookUrl = null;
 let activeView = "home";
 
 const uid = () =>
@@ -51,6 +37,78 @@ const esc = x =>
     '"': "&quot;",
     "'": "&#039;"
   }[c]));
+
+const formatBookSize = bytes => {
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} كيلوبايت`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} ميغابايت`;
+};
+
+const closePdfViewer = () => {
+  const frame = $("#pdf-frame");
+  if (frame) frame.removeAttribute("src");
+  $("#pdf-viewer")?.setAttribute("hidden", "");
+  if (activeBookUrl) {
+    URL.revokeObjectURL(activeBookUrl);
+    activeBookUrl = null;
+  }
+};
+
+function renderBooks() {
+  const root = $("#books-list");
+  if (!root) return;
+  if (!books.length) {
+    root.innerHTML = `<section class="panel books-empty"><strong>لا توجد كتب بعد</strong><p>أضف ملف PDF واحداً ليظهر هنا.</p></section>`;
+    return;
+  }
+  root.innerHTML = books.map(book => `<article class="book-card panel"><div class="book-card-info"><span class="book-icon" aria-hidden="true">PDF</span><div><h3>${esc(book.name)}</h3><p>${formatBookSize(book.size) || "حجم غير معروف"}</p></div></div><div class="book-actions"><button class="primary" data-book-action="open" data-book-id="${esc(book.id)}">فتح</button><button class="soft-button" data-book-action="delete" data-book-id="${esc(book.id)}">حذف</button></div></article>`).join("");
+}
+
+async function isPdfFile(file) {
+  if (!file) return false;
+  const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  return new TextDecoder().decode(header) === "%PDF-";
+}
+
+async function openPdfBook(id) {
+  const book = books.find(item => item.id === id);
+  if (!book) return;
+  const file = await getBookFile(id);
+  if (!file) throw new Error("تعذر العثور على ملف الكتاب");
+  const url = URL.createObjectURL(file);
+  closePdfViewer();
+  activeBookUrl = url;
+  $("#pdf-viewer-title").textContent = book.name;
+  $("#pdf-frame").src = url;
+  $("#pdf-viewer").removeAttribute("hidden");
+  $("#pdf-viewer").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function handleBookFile(file) {
+  if (!file) return;
+  if (!(await isPdfFile(file))) {
+    alert("يمكن إضافة ملفات PDF فقط.");
+    return;
+  }
+  const book = { id: uid(), name: file.name, size: file.size, type: "application/pdf", createdAt: new Date().toISOString() };
+  await addBook(book, file);
+  books.push(book);
+  books.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  renderBooks();
+}
+
+async function loadBooks() {
+  try {
+    books = (await listBooks()).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  } catch (error) {
+    books = [];
+    console.warn("Books storage is unavailable", error);
+    const root = $("#books-list");
+    if (root) root.innerHTML = `<section class="panel books-empty"><strong>تعذر فتح مكتبة الكتب</strong><p>تأكد من السماح بالتخزين المحلي في المتصفح.</p></section>`;
+    return;
+  }
+  renderBooks();
+}
 
 const weekDays = [
   ["saturday", "السبت"], ["sunday", "الأحد"], ["monday", "الاثنين"],
@@ -72,17 +130,7 @@ function normalize() {
   }
   data.studyLog ??= [];
   data.subjectState ??= {};
-  data.englishStudy ??= {
-    books: [],
-    activeSession: null,
-    dailyGoal: { minutes: 30, completed: 0, date: null },
-    activity: []
-  };
-  data.englishStudy.books ??= [];
-  data.englishStudy.pendingImport ??= null;
-  data.englishStudy.activity ??= [];
-  data.englishStudy.dailyGoal ??= { minutes: 30, completed: 0, date: null };
-  data.subjectState.english ??= { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [] };
+  data.smartPlanSubjectId ??= "";
   const validDays = new Set(weekDays.map(([key]) => key));
   const schedule = Array.isArray(data.weeklySchedule) ? data.weeklySchedule : [];
   const isNewSchedule = schedule.every(item => item && Array.isArray(item.tasks));
@@ -90,9 +138,7 @@ function normalize() {
 
   if (!isNewSchedule) {
     const grouped = [];
-    const legacy = Array.isArray(data.weeklyScheduleLegacy)
-      ? data.weeklyScheduleLegacy
-      : [];
+    const legacy = Array.isArray(data.weeklyScheduleLegacy) ? data.weeklyScheduleLegacy : [];
     schedule.forEach(item => {
       if (!item || !validDays.has(item.day)) {
         if (item) legacy.push(item);
@@ -106,19 +152,12 @@ function normalize() {
         legacy.push(item);
         return;
       }
-
-      let entry = grouped.find(x =>
-        x.day === item.day && x.subjectId === subject.id
-      );
+      let entry = grouped.find(x => x.day === item.day && x.subjectId === subject.id);
       if (!entry) {
-        entry = { id: uid(), day: item.day, subjectId: subject.id, tasks: [] };
+        entry = { id: item.id || uid(), day: item.day, subjectId: subject.id, tasks: [] };
         grouped.push(entry);
       }
-      entry.tasks.push({
-        id: item.id || uid(),
-        title: String(item.title || item.name).trim(),
-        done: !!item.done
-      });
+      entry.tasks.push({ id: item.id || uid(), title: String(item.title || item.name).trim(), done: !!item.done });
     });
     data.weeklySchedule = grouped;
     data.weeklyScheduleLegacy = legacy;
@@ -130,115 +169,46 @@ function normalize() {
         ...item,
         tasks: item.tasks
           .filter(task => task && task.id && String(task.title || task.name || "").trim())
-          .map(task => ({
-            ...task,
-            title: String(task.title || task.name).trim(),
-            done: !!task.done
-          }))
+          .map(task => ({ ...task, title: String(task.title || task.name).trim(), done: !!task.done }))
       }));
   }
   data.studyLog = data.studyLog
     .filter(e => e && e.date)
-    .map(e => ({
-      id: e.id || uid(),
-      subject: e.subject || "",
-      minutes: Math.max(Number(e.minutes) || 0, 0),
-      date: e.date
-    }))
+    .map(e => ({ id: e.id || uid(), subject: e.subject || "", minutes: Math.max(Number(e.minutes) || 0, 0), date: e.date }))
     .filter(e => e.minutes > 0);
-  data.studyPlan ??= {
-    durationDays: 0,
-    startedAt: null,
-    activeMode: "natural",
-    activity: {}
-  };
+  data.studyPlan ??= { durationDays: 0, startedAt: null, activeMode: "natural", activity: {} };
   data.studyPlan.activity ??= {};
-  if (data.studyPlan.activeMode === "basic") {
-    data.studyPlan.activeMode = "natural";
-  }
-  data.studyPlan.durationDays = Math.max(
-    Number(data.studyPlan.durationDays) || 0,
-    0
-  );
-  data.studyPlan.activeMode = ["natural", "fast", "slow"].includes(
-    data.studyPlan.activeMode
-  ) ? data.studyPlan.activeMode : "natural";
+  if (data.studyPlan.activeMode === "basic") data.studyPlan.activeMode = "natural";
+  data.studyPlan.durationDays = Math.max(Number(data.studyPlan.durationDays) || 0, 0);
+  data.studyPlan.activeMode = ["natural", "fast", "slow"].includes(data.studyPlan.activeMode) ? data.studyPlan.activeMode : "natural";
 
   data.subjects.forEach(s => {
     s.chapters ??= [];
-
-    s.totalLessons = Math.max(
-      Number(s.totalLessons) || 0,
-      ...s.chapters.map(c => (c.lessons || []).length),
-      0
-    );
-
+    s.totalLessons = Math.max(Number(s.totalLessons) || 0, ...s.chapters.map(c => (c.lessons || []).length), 0);
     s.durationDays = Number(s.durationDays) || 0;
     s.createdAt ??= new Date().toISOString();
     s.plan ??= null;
-    if (s.plan && !["slow", "natural", "fast"].includes(s.plan.type)) {
-      s.plan = null;
-    }
+    if (s.plan && !["slow", "natural", "fast"].includes(s.plan.type)) s.plan = null;
     s.color = colors[s.color] ? s.color : "green";
-
     s.chapters.forEach(c => {
       c.lessons ??= [];
-      c.totalLessons = Math.max(
-        Number(c.totalLessons) || 0,
-        c.lessons.length
-      );
-
-      c.lessons.forEach(l => {
-        if (l.done && !l.completedAt) l.completedAt = null;
-      });
+      c.totalLessons = Math.max(Number(c.totalLessons) || 0, c.lessons.length);
+      c.lessons.forEach(l => { if (l.done && !l.completedAt) l.completedAt = null; });
     });
   });
-
-  data.tasks.forEach(t => {
-    t.done = !!t.done;
-  });
-
+  data.tasks.forEach(t => { t.done = !!t.done; });
   if (scheduleMigrated) save(data);
 }
 
 normalize();
 
-const lessons = s =>
-  s.chapters.flatMap(c =>
-    c.lessons.map(l => ({
-      ...l,
-      chapter: c.name,
-      chapterId: c.id,
-      subject: s.name,
-      subjectId: s.id
-    }))
-  );
-
-const completed = s =>
-  s.chapters.reduce(
-    (n, c) => n + c.lessons.filter(l => l.done).length,
-    0
-  );
-
-const total = s =>
-  Math.max(
-    Number(s.totalLessons) || 0,
-    s.chapters.reduce((n, c) => n + c.lessons.length, 0)
-  );
-
-const percent = s =>
-  total(s)
-    ? Math.round(completed(s) / total(s) * 100)
-    : 0;
-
-const all = () =>
-  data.subjects.flatMap(lessons);
-
-const allTotal = () =>
-  data.subjects.reduce((n, s) => n + total(s), 0);
-
-const allDone = () =>
-  data.subjects.reduce((n, s) => n + completed(s), 0);
+const lessons = s => s.chapters.flatMap(c => c.lessons.map(l => ({ ...l, chapter: c.name, chapterId: c.id, subject: s.name, subjectId: s.id })));
+const completed = s => s.chapters.reduce((n, c) => n + c.lessons.filter(l => l.done).length, 0);
+const total = s => Math.max(Number(s.totalLessons) || 0, s.chapters.reduce((n, c) => n + c.lessons.length, 0));
+const percent = s => total(s) ? Math.round(completed(s) / total(s) * 100) : 0;
+const all = () => data.subjects.flatMap(lessons);
+const allTotal = () => data.subjects.reduce((n, s) => n + total(s), 0);
+const allDone = () => data.subjects.reduce((n, s) => n + completed(s), 0);
 
 const overall = () =>
   allTotal()
@@ -576,7 +546,7 @@ function subjectCard(s) {
 // خطة الدراسة الذكية
 // =========================
 
-function smartPlanState(subjectId = "english") {
+function smartPlanState(subjectId = "general") {
   const state = data.subjectState[subjectId] ??= { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [], smartPlan: {} };
   state.smartPlan ??= {};
   state.smartPlan.daily ??= { date: todayKey(), stage: "study", status: "open", subjectId };
@@ -585,11 +555,11 @@ function smartPlanState(subjectId = "english") {
   return state.smartPlan;
 }
 
-function buildSmartDailyPlan(subjectId = "english") {
+function buildSmartDailyPlan(subjectId = "general") {
   const plan = smartPlanState(subjectId);
   const engine = smartStudyEngine(subjectId);
   const contentLesson = engine.buildDailyPlan();
-  const chapter = data.subjects.find(subject => subject.name.toLowerCase().includes(subjectId))?.chapters?.find(item => !item.lessons.every(lesson => lesson.done));
+  const chapter = data.subjects.find(subject => subject.id === subjectId)?.chapters?.find(item => !item.lessons.every(lesson => lesson.done));
   if (!plan.date || plan.date !== todayKey()) {
     Object.assign(plan, { date: todayKey(), stage: "study", status: contentLesson.status, subjectId, lessonId: contentLesson.lessonId || null, chapterId: chapter?.id || null });
     save(data);
@@ -605,16 +575,22 @@ function renderSmartStudyPlan() {
   const root = $("#smart-plan-content");
   const home = $("#home-smart-plan-content");
   if (!root && !home) return;
-  const plan = buildSmartDailyPlan("english");
-  const engine = subjectEngine("english");
+  const selectedSubject = data.subjects.find(subject => subject.id === data.smartPlanSubjectId);
+  const selectedSubjectId = selectedSubject?.id || "general";
+  const plan = buildSmartDailyPlan(selectedSubjectId);
+  const engine = subjectEngine(selectedSubjectId);
   const progress = engine.getProgress();
   const reviews = engine.getOpenReviews();
   const lesson = plan.lessonId ? engine.getLesson(plan.lessonId) : null;
-  const content = lesson || { title: "لا يوجد محتوى منظم بعد", unitTitle: "English", pages: {} };
+  const content = lesson || { title: "لا يوجد محتوى منظم بعد", unitTitle: "غير محدد", pages: {} };
   const examMessage = plan.examMessage ? `<p class="smart-exam-message">${esc(plan.examMessage)}</p>` : "";
   const markup = `<div class="smart-plan-card"><div class="section-head"><div><p class="eyebrow dark">Today</p><h3>خطة اليوم</h3><p class="english-muted">${esc(content.unitTitle || "English")} · ${esc(content.title)}</p></div><span class="smart-stage">${smartPlanStageLabel(plan.stage)}</span></div><div class="smart-plan-details"><span><small>المادة</small><b>English</b></span><span><small>الفصل</small><b>${esc(content.unitTitle || "غير محدد")}</b></span><span><small>الجزء</small><b>${content.pages ? `ص ${content.pages.from || "-"}–${content.pages.to || "-"}` : "يحتاج محتوى"}</b></span><span><small>الوقت</small><b>30 دقيقة</b></span></div><p class="english-muted">${lesson ? "بعد الدراسة: حل أسئلة هذا الجزء ثم ابدأ اختبار اليوم." : "أضف بيانات الكتاب والأسئلة إلى content/english/data.json لتوليد خطة فعلية."}</p><div class="smart-plan-actions">${lesson ? `<button class="primary" data-smart-action="complete-study">بدء الدراسة</button>` : ""}<button class="soft-button" data-smart-action="advance-stage">${plan.stage === "quiz" ? "فتح اختبار اليوم" : "تسجيل المرحلة"}</button></div></div><div class="smart-plan-sections"><section class="panel"><h3>اختبار اليوم</h3><p class="english-muted">يظهر بعد إكمال دراسة الجزء وحل أسئلته. الأسئلة مأخوذة من محتوى اليوم فقط.</p><button class="soft-button" data-smart-action="daily-quiz" ${plan.stage !== "quiz" ? "disabled" : ""}>اختبار اليوم</button>${plan.lastRequestedExam === "daily-quiz" ? examMessage : ""}</section><section class="panel"><h3>خطة الأسبوع</h3><p class="english-muted">تتجمع نتائج محتوى الأسبوع قبل فتح الاختبار الأسبوعي.</p><button class="soft-button" data-smart-action="weekly-quiz">اختبار الأسبوع</button>${plan.lastRequestedExam === "weekly-quiz" ? examMessage : ""}</section><section class="panel"><h3>اختبارات الفصول</h3><p class="english-muted">أسئلة الكتاب والتمارين، والأسئلة الوزارية فقط عند توفرها فعليًا.</p><button class="soft-button" data-smart-action="chapter-quiz">اختبار الفصل</button>${plan.lastRequestedExam === "chapter-quiz" ? examMessage : ""}</section><section class="panel"><h3>المراجعة</h3><p class="english-muted">${reviews.length ? `${reviews.length} موضوع يحتاج مراجعة.` : "لا توجد مراجعات مفتوحة."}</p><button class="soft-button" data-smart-action="reviews">فتح المراجعة</button></section></div><section class="panel smart-progress-panel"><h3>التقدم</h3><div class="subject-engine-progress"><span><small>المحاضرات</small><b>${progress.lectures}%</b></span><span><small>الكتاب</small><b>${progress.book}%</b></span><span><small>الخطة</small><b>${progress.tasks}%</b></span><span><small>الاختبارات</small><b>${progress.exams}%</b></span><span><small>الإتقان</small><b>${progress.mastery}%</b></span></div></section>`;
-  if (root) root.innerHTML = markup;
-  if (home) home.innerHTML = `<p class="english-muted">${lesson ? `English · ${esc(content.unitTitle || content.title)} · ${smartPlanStageLabel(plan.stage)}` : "لا توجد خطة منظمة بعد."}</p><button class="soft-button" data-view="smart-plan">فتح خطة الدراسة</button>`;
+  if (root) {
+    root.innerHTML = markup.replaceAll("<b>English</b>", `<b>${esc(selectedSubject?.name || "غير محدد")}</b>`).replaceAll("content/english/data.json", "محتوى المادة المنظم");
+    const options = data.subjects.map(subject => `<option value="${subject.id}" ${subject.id === data.smartPlanSubjectId ? "selected" : ""}>${esc(subject.name)}</option>`).join("");
+    root.insertAdjacentHTML("afterbegin", `<label class="smart-subject-picker">المادة<select data-smart-subject><option value="">اختر مادة</option>${options}</select></label>`);
+  }
+  if (home) home.innerHTML = `<p class="english-muted">${lesson ? `${esc(selectedSubject?.name || "غير محدد")} · ${esc(content.unitTitle || content.title)} · ${smartPlanStageLabel(plan.stage)}` : "لا توجد خطة منظمة بعد."}</p><button class="soft-button" data-view="smart-plan">فتح خطة الدراسة</button>`;
 }
 
 // =========================
@@ -645,7 +621,7 @@ function renderHome() {
     data.subjects.length.toLocaleString("ar-IQ");
 
   $("#smart-plan-count").textContent =
-    (smartPlanState("english").status === "open" ? "١" : "٠");
+    (smartPlanState("general").status === "open" ? "١" : "٠");
 }
 
 // =========================
@@ -917,10 +893,7 @@ function renderHeroProgress() {
 // English Smart Study
 // =========================
 
-const english = () => data.englishStudy;
-const englishToday = () => new Date().toLocaleDateString("en-CA");
-const englishModes = ["reading", "vocabulary", "writing", "memorization"];
-const englishCategories = ["Stories", "Composition", "Literature", "Passages", "Vocabulary", "Listening", "Memorization"];
+const staticContent = {};
 const subjectEngine = subjectId => new SubjectStudyEngine({
   subjectId,
   content: staticContent[subjectId] || { subjectId, units: [], questions: { book: [], exercises: [], ministry: [] } },
@@ -929,125 +902,14 @@ const subjectEngine = subjectId => new SubjectStudyEngine({
 });
 const smartStudyEngine = subjectId => new SmartStudyPlan({
   subjectId,
-  chapters: data.subjects.find(subject => subject.name.toLowerCase().includes(subjectId))?.chapters || [],
+  chapters: data.subjects.find(subject => subject.id === subjectId)?.chapters || [],
   content: staticContent[subjectId] || {},
   state: data.subjectState[subjectId] || (data.subjectState[subjectId] = { lessons: {}, items: {}, dailyTasks: [], exams: [], reviewTasks: [] }),
   saveState: state => { data.subjectState[subjectId] = state; save(data); }
 });
 
-function englishRecord(item, mode) {
-  item.progress ??= {};
-  item.progress[mode] ??= {
-    status: "New", masteryLevel: 0, lastReviewedAt: null,
-    nextReviewAt: null, reviewCount: 0, correctCount: 0, wrongCount: 0, intervalDays: 0
-  };
-  return item.progress[mode];
-}
-
-function englishAllSentences(book) {
-  return (book?.sections || []).flatMap(section => section.sentences || []);
-}
-
-function englishBookStats(book) {
-  const sentences = englishAllSentences(book);
-  const get = mode => sentences.filter(s => englishRecord(s, mode).status === "Mastered").length;
-  const due = sentences.filter(s => englishDue(s, "review") || englishDue(s, "memorization")).length;
-  return { total: sentences.length, reading: get("reading"), writing: get("writing"), vocabulary: get("vocabulary"), memorization: get("memorization"), due };
-}
-
-function englishDue(item, mode) {
-  const record = englishRecord(item, mode);
-  return record.nextReviewAt && record.nextReviewAt <= englishToday() && record.status !== "Mastered";
-}
-
-function englishSetReview(item, mode, correct) {
-  const record = englishRecord(item, mode);
-  const intervals = [1, 3, 7, 14];
-  record.lastReviewedAt = new Date().toISOString();
-  record.reviewCount += 1;
-  record[correct ? "correctCount" : "wrongCount"] += 1;
-  record.masteryLevel = correct ? Math.min(record.masteryLevel + 1, 5) : Math.max(record.masteryLevel - 1, 0);
-  record.status = correct ? (record.masteryLevel >= 5 ? "Mastered" : "Learning") : "Review";
-  record.intervalDays = correct ? intervals[Math.min(record.masteryLevel - 1, intervals.length - 1)] || 14 : 1;
-  const next = new Date();
-  next.setDate(next.getDate() + record.intervalDays);
-  record.nextReviewAt = next.toLocaleDateString("en-CA");
-}
-
-function englishCategory(text) {
-  const value = text.toLowerCase();
-  if (/literature focus|pride and prejudice|as you like it|shakespeare/.test(value)) return "Literature";
-  if (/composition|essay|write about|paragraph/.test(value)) return "Composition";
-  if (/vocabulary|new words|word study|meaning/.test(value)) return "Vocabulary";
-  if (/listen|listening|audio|conversation/.test(value)) return "Listening";
-  if (/memorization|memorise|memorize|learn by heart/.test(value)) return "Memorization";
-  if (/story|tale|chapter|once upon|character/.test(value)) return "Stories";
-  if (/reading|passage|read the following|text/.test(value)) return "Passages";
-  return "Unclassified";
-}
-
-function englishSentences(text) {
-  return text.replace(/\r/g, "").split(/(?<=[.!?])\s+(?=[A-Z0-9"'])|\n{2,}/).map(x => x.replace(/\s+/g, " ").trim()).filter(x => x.length > 2);
-}
-
-function englishWordDiff(expected, actual) {
-  const clean = value => value.toLowerCase().replace(/[.,!?;:'"“”()\[\]]/g, "").split(/\s+/).filter(Boolean);
-  const source = clean(expected); const answer = clean(actual);
-  const missing = source.filter((word, index) => answer[index] !== word);
-  const extra = answer.filter((word, index) => source[index] !== word);
-  const correct = source.filter((word, index) => answer[index] === word).length;
-  return { correct, total: source.length, missing, extra, exact: correct === source.length && source.length === answer.length };
-}
-
-function englishBookFromText(name, text) {
-  const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  const sections = [];
-  let current = { id: uid(), title: "Imported passage", category: englishCategory(text), page: 1, sourceText: text, sentences: englishSentences(text).map(sentence => ({ id: uid(), text: sentence, progress: {} })) };
-  const title = lines.find(line => line.length > 3 && line.length < 100) || name.replace(/\.[^.]+$/, "");
-  current.title = title;
-  sections.push(current);
-  return { id: uid(), title: name.replace(/\.[^.]+$/, ""), sourceName: name, importedAt: new Date().toISOString(), sections, sourceHash: `${name}:${text.length}:${text.slice(0, 120)}` };
-}
-
-function englishProgress(message, percent, detail = "") {
-  const panel = $("#english-import-progress");
-  const label = $("#english-import-progress-label");
-  const bar = $("#english-import-progress-bar");
-  if (!panel || !label || !bar) return;
-  panel.hidden = false;
-  label.textContent = `${message}${detail ? ` · ${detail}` : ""} ${Math.round(percent)}%`;
-  bar.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
-}
-
-function cleanOcrPages(pages) {
-  const counts = new Map();
-  pages.forEach(page => {
-    const lines = page.text.split(/\r?\n/).map(line => line.replace(/\s+/g, " ").trim()).filter(Boolean);
-    page.lines = lines;
-    [...new Set(lines)].forEach(line => counts.set(line, (counts.get(line) || 0) + 1));
-  });
-  const repeated = new Set([...counts].filter(([, count]) => count >= Math.max(2, Math.ceil(pages.length * 0.3))).map(([line]) => line));
-  return pages.map(page => {
-    const lines = page.lines.filter(line => !/^page\s*\d+$/i.test(line) && !/^\d{1,4}$/.test(line) && !repeated.has(line));
-    return { ...page, text: lines.join(" ").replace(/\s+/g, " ").trim() };
-  });
-}
-
-function englishBookFromPages(name, pages, ocrIssues = []) {
-  const cleaned = cleanOcrPages(pages).filter(page => page.text.length > 2);
-  const sections = cleaned.map(page => {
-    const lines = page.text.split(/(?<=[.!?])\s+/);
-    const title = lines[0]?.length < 100 ? lines[0] : `Page ${page.page}`;
-    return {
-      id: uid(), title, category: englishCategory(page.text), page: page.page,
-      sourceText: page.text,
-      sentences: englishSentences(page.text).map(sentence => ({ id: uid(), text: sentence, page: page.page, progress: {} }))
-    };
-  });
-  const fullText = cleaned.map(page => `Page ${page.page}\n${page.text}`).join("\n\n");
-  return { id: uid(), title: name.replace(/\.[^.]+$/, ""), sourceName: name, importedAt: new Date().toISOString(), sections, sourceHash: `${name}:${fullText.length}:${fullText.slice(0, 120)}`, ocr: true, ocrIssues };
-}
-
+/* legacy English import removed */
+/*
 async function englishRenderCanvas(page, rotation, variant) {
   const base = page.getViewport({ scale: 1, rotation });
   const scale = Math.min(3.2, Math.max(2.2, 2200 / Math.max(base.width, base.height)));
@@ -1215,6 +1077,7 @@ function englishReviewMistakes() {
   root.hidden = false;
   root.innerHTML = `<div class="section-head"><h2>Mistakes</h2><button class="icon-button" data-english-action="close-review">×</button></div><p>${items.length} sentences need review</p>${items.length ? `<ul class="english-mistake-list">${items.map(item => `<li><span>${esc(item.text)}</span><button class="soft-button" data-english-book="${item.book.id}">Review</button></li>`).join("")}</ul>` : `<p class="english-muted">Nothing needs review today.</p>`}`;
 }
+*/
 
 // =========================
 // الرسم الرئيسي
@@ -1242,8 +1105,7 @@ function render() {
   renderStats();
   renderOptions();
   renderSmartStudyPlan();
-  renderEnglishStudy();
-  if (english().activeSession) renderEnglishSession();
+  renderBooks();
 
   showView(activeView);
 }
@@ -1276,7 +1138,7 @@ function showView(view) {
     "smart-plan": "خطة الدراسة الذكية",
     weekly: "الجدول الأسبوعي",
     stats: "تقدّمك",
-    english: "English Smart Study"
+    books: "كتبي"
   }[view] || "سَعي";
 
   if (previousView !== view) {
@@ -1609,6 +1471,29 @@ document.addEventListener("click", e => {
 
   if (!b) return;
 
+  if (b.dataset.bookAction) {
+    if (b.dataset.bookAction === "close-viewer") {
+      closePdfViewer();
+      return;
+    }
+    const bookId = b.dataset.bookId;
+    if (b.dataset.bookAction === "open") {
+      b.disabled = true;
+      openPdfBook(bookId).catch(error => alert(error.message || "تعذر فتح الكتاب.")).finally(() => { b.disabled = false; });
+      return;
+    }
+    if (b.dataset.bookAction === "delete") {
+      const book = books.find(item => item.id === bookId);
+      if (!book || !confirm(`هل تريد حذف «${book.name}»؟`)) return;
+      removeBook(bookId).then(() => {
+        if (activeBookUrl && $("#pdf-viewer-title")?.textContent === book.name) closePdfViewer();
+        books = books.filter(item => item.id !== bookId);
+        renderBooks();
+      }).catch(error => alert(error.message || "تعذر حذف الكتاب."));
+      return;
+    }
+  }
+
   // إغلاق النافذة
   if (b.dataset.closeModal) {
     e.preventDefault();
@@ -1628,43 +1513,11 @@ document.addEventListener("click", e => {
     return;
   }
 
-  if (b.dataset.englishAction) {
-    const action = b.dataset.englishAction;
-    const book = englishSessionBook();
-    const state = english().activeSession;
-    if (action === "start" || action === "continue") {
-      const target = action === "continue" && book ? book : english().books[0];
-      if (target) englishStart(target, state?.sectionIndex || 0, state?.sentenceIndex || 0, state?.mode || "reading");
-      else $("#english-book-input")?.click();
-      return;
-    }
-    if (action === "discard-import") { english().pendingImport = null; save(data); renderEnglishStudy(); return; }
-    if (action === "confirm-import") {
-      const pending = english().pendingImport;
-      if (!pending || pending.sections.some(section => !englishCategories.includes(section.category))) { alert("Choose a category for every section before importing."); return; }
-      english().books.push(pending); english().pendingImport = null; save(data); renderEnglishStudy(); return;
-    }
-    if (action === "mistakes") { englishReviewMistakes(); return; }
-    if (action === "close-review") { $("#english-review").hidden = true; return; }
-    if (!book || !state) return;
-    const section = book.sections[state.sectionIndex];
-    const sentence = section?.sentences[state.sentenceIndex];
-    if (action === "close-session") { english().activeSession = null; save(data); $("#english-session").hidden = true; renderEnglishStudy(); return; }
-    if (action === "listen") {
-      if (!("speechSynthesis" in window)) { alert("Speech synthesis is not available on this device."); return; }
-      speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(sentence.text); utterance.lang = "en-US"; speechSynthesis.speak(utterance); return;
-    }
-    if (action === "record") { alert("Recording is available when MediaRecorder is supported. Pronunciation scoring is not provided."); return; }
-    if (action === "reveal") { state.revealed = true; renderEnglishSession(book); return; }
-    if (action === "writing" || action === "memorization") { state.mode = action; state.feedback = null; save(data); renderEnglishSession(book); return; }
-    if (action === "memorize-check") { englishSetReview(sentence, "memorization", true); state.mode = "memorization"; save(data); renderEnglishSession(book); renderEnglishDashboard(); return; }
-    if (action === "previous" || action === "next") { state.sentenceIndex = Math.max(0, Math.min(section.sentences.length - 1, state.sentenceIndex + (action === "next" ? 1 : -1))); state.updatedAt = new Date().toISOString(); state.feedback = null; state.revealed = false; save(data); renderEnglishSession(book); }
-    return;
-  }
-
   if (b.dataset.smartAction) {
-    const plan = smartPlanState("english");
-    const smartEngine = smartStudyEngine("english");
+    const selectedSubject = data.subjects.find(subject => subject.id === data.smartPlanSubjectId);
+    const selectedSubjectId = selectedSubject?.id || "general";
+    const plan = smartPlanState(selectedSubjectId);
+    const smartEngine = smartStudyEngine(selectedSubjectId);
     if (b.dataset.smartAction === "complete-study") smartEngine.completeStudyStage("study");
     if (b.dataset.smartAction === "advance-stage") smartEngine.completeStudyStage(plan.stage);
     if (["daily-quiz", "weekly-quiz", "chapter-quiz"].includes(b.dataset.smartAction)) {
@@ -1676,12 +1529,6 @@ document.addEventListener("click", e => {
     if (b.dataset.smartAction === "reviews") plan.reviewOpenedAt = new Date().toISOString();
     save(data);
     renderSmartStudyPlan();
-    return;
-  }
-
-  if (b.dataset.englishBook || b.dataset.englishReviewBook) {
-    const book = english().books.find(item => item.id === (b.dataset.englishBook || b.dataset.englishReviewBook));
-    if (book) englishStart(book);
     return;
   }
 
@@ -1745,6 +1592,7 @@ document.addEventListener("click", e => {
       type: mode,
       dailyLessons: studyPlan(subject, mode).daily
     };
+
     save(data);
     updateDetailPlan(subject);
     return;
@@ -2037,27 +1885,24 @@ if (b.dataset.completeChapter) {
 
 document.addEventListener("change", e => {
 
-  if (e.target.id === "english-book-input") {
+  if (e.target.matches("[data-smart-subject]")) {
+    data.smartPlanSubjectId = e.target.value;
+    save(data);
+    renderSmartStudyPlan();
+    return;
+  }
+
+  if (e.target.id === "book-input") {
     const file = e.target.files?.[0];
     if (!file) return;
     const input = e.target;
     input.disabled = true;
-    input.parentElement.firstChild.textContent = "Reading PDF...";
     (async () => {
       try {
-        const book = file.type === "text/plain" ? englishBookFromText(file.name, await file.text()) : await englishExtractPdf(file);
-        const duplicate = english().books.find(item => item.sourceHash === book.sourceHash);
-        if (duplicate) { alert("Already imported. The existing book was kept."); return; }
-        english().pendingImport = book; save(data); renderEnglishStudy();
-      } catch (error) { alert(error.message || "The book could not be read."); }
-      finally { input.disabled = false; input.value = ""; input.parentElement.firstChild.textContent = "Import English Book"; const progress = $("#english-import-progress"); if (progress) progress.hidden = true; }
+        await handleBookFile(file);
+      } catch (error) { alert(error.message || "تعذر حفظ الكتاب."); }
+      finally { input.disabled = false; input.value = ""; }
     })();
-    return;
-  }
-
-  if (e.target.dataset.englishCategory && english().pendingImport) {
-    english().pendingImport.sections[Number(e.target.dataset.englishCategory)].category = e.target.value;
-    save(data);
     return;
   }
 
@@ -2496,16 +2341,6 @@ $("#weekly-form").onsubmit = e => {
 };
 
 document.addEventListener("submit", e => {
-  if (e.target.matches("[data-english-writing]")) {
-    e.preventDefault();
-    const book = englishSessionBook(); const state = english().activeSession;
-    const sentence = book?.sections[state.sectionIndex]?.sentences[state.sentenceIndex];
-    if (!sentence) return;
-    state.feedback = englishWordDiff(sentence.text, new FormData(e.target).get("answer"));
-    englishSetReview(sentence, "writing", state.feedback.exact || state.feedback.correct / Math.max(state.feedback.total, 1) >= 0.8);
-    state.updatedAt = new Date().toISOString(); save(data); renderEnglishSession(book); renderEnglishDashboard();
-    return;
-  }
   const form = e.target.closest("[data-weekly-task-form]");
   if (!form) return;
   e.preventDefault();
@@ -2674,3 +2509,5 @@ $("#today-date").textContent =
 // =========================
 
 render();
+loadBooks();
+window.addEventListener("beforeunload", closePdfViewer);
