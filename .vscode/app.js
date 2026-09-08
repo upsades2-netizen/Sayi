@@ -1,4 +1,4 @@
-import { addBook, getBookFile, listBooks, load, removeBook, save } from "./store.js";
+import { addBook, getBookFile, listBooks, load, removeBook, save, updateBook } from "./store.js";
 import { SubjectStudyEngine } from "./subject-study-engine.js";
 import { SmartStudyPlan } from "./smart-study-plan.js";
 
@@ -61,7 +61,7 @@ function renderBooks() {
     root.innerHTML = `<section class="panel books-empty"><strong>لا توجد كتب بعد</strong><p>أضف ملف PDF واحداً ليظهر هنا.</p></section>`;
     return;
   }
-  root.innerHTML = books.map(book => `<article class="book-card panel"><div class="book-card-info"><span class="book-icon" aria-hidden="true">PDF</span><div><h3>${esc(book.name)}</h3><p>${formatBookSize(book.size) || "حجم غير معروف"}</p></div></div><div class="book-actions"><button class="primary" data-book-action="open" data-book-id="${esc(book.id)}">فتح</button><button class="soft-button" data-book-action="delete" data-book-id="${esc(book.id)}">حذف</button></div></article>`).join("");
+  root.innerHTML = books.map(book => `<article class="book-card panel"><div class="book-card-info"><span class="book-icon" aria-hidden="true">PDF</span><div><h3>${esc(book.name)}</h3><p>${formatBookSize(book.size) || "حجم غير معروف"} · ${book.extractionStatus === "ready" ? `${book.pageCount} صفحة محللة` : "لم يُحلل بعد"}</p></div></div><div class="book-actions"><button class="primary" data-book-action="open" data-book-id="${esc(book.id)}">فتح</button><button class="soft-button" data-book-action="analyze" data-book-id="${esc(book.id)}">${book.extractionStatus === "ready" ? "إعادة التحليل" : "تحليل الكتاب"}</button><button class="soft-button" data-book-action="delete" data-book-id="${esc(book.id)}">حذف</button></div></article>`).join("");
 }
 
 async function isPdfFile(file) {
@@ -90,11 +90,36 @@ async function handleBookFile(file) {
     alert("يمكن إضافة ملفات PDF فقط.");
     return;
   }
-  const book = { id: uid(), name: file.name, size: file.size, type: "application/pdf", createdAt: new Date().toISOString() };
+  const book = { id: uid(), name: file.name, size: file.size, type: "application/pdf", createdAt: new Date().toISOString(), extractionStatus: "pending", pages: [] };
   await addBook(book, file);
   books.push(book);
   books.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   renderBooks();
+}
+
+async function extractPdfBook(bookId) {
+  const book = books.find(item => item.id === bookId);
+  if (!book) return;
+  const file = await getBookFile(bookId);
+  if (!file) throw new Error("تعذر العثور على ملف الكتاب");
+  const pdfjs = await import("./pdfjs/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("./pdfjs/pdf.worker.min.mjs", import.meta.url).toString();
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let number = 1; number <= pdf.numPages; number++) {
+    const page = await pdf.getPage(number);
+    const content = await page.getTextContent();
+    const text = content.items.map(item => item.str).join(" ").replace(/\s+/g, " ").trim();
+    pages.push({ number, text, wordCount: text ? text.split(/\s+/).length : 0, extractedAt: new Date().toISOString() });
+  }
+  book.pageCount = pdf.numPages;
+  book.pages = pages;
+  book.extractionStatus = "ready";
+  book.extractedAt = new Date().toISOString();
+  await updateBook(book);
+  renderBooks();
+  renderSmartStudyPlan();
+  alert(`تم تحليل ${pages.length} صفحة. افتح الخطة الذكية لاختيار الكتاب للدراسة.`);
 }
 
 async function loadBooks() {
@@ -108,6 +133,7 @@ async function loadBooks() {
     return;
   }
   renderBooks();
+  renderSmartStudyPlan();
 }
 
 const weekDays = [
@@ -552,7 +578,23 @@ function smartPlanState(subjectId = "general") {
   state.smartPlan.daily ??= { date: todayKey(), stage: "study", status: "open", subjectId };
   state.smartPlan.weekly ??= { week: "", status: "locked" };
   state.smartPlan.results ??= [];
+  state.smartPlan.sourceBookId ??= "";
+  state.smartPlan.pdfPageIndex ??= 0;
   return state.smartPlan;
+}
+
+function renderPdfStudyPanel(subjectId) {
+  const root = $("#smart-plan-content");
+  if (!root) return;
+  const plan = smartPlanState(subjectId);
+  const analyzed = books.filter(book => book.extractionStatus === "ready" && book.pages?.length);
+  if (!analyzed.length) return;
+  const selected = analyzed.find(book => book.id === plan.sourceBookId) || analyzed[0];
+  plan.sourceBookId = selected.id;
+  const pageIndex = Math.min(Number(plan.pdfPageIndex) || 0, selected.pages.length - 1);
+  const page = selected.pages[pageIndex];
+  root.insertAdjacentHTML("afterbegin", `<section class="panel pdf-study-panel"><div class="section-head"><div><p class="eyebrow dark">مصدر الخطة</p><h3>دراسة الكتاب بالتسلسل</h3></div><span>${pageIndex + 1} / ${selected.pages.length}</span></div><label>الكتاب<select data-pdf-book><option value="${esc(selected.id)}">${esc(selected.name)}</option>${analyzed.filter(book => book.id !== selected.id).map(book => `<option value="${esc(book.id)}">${esc(book.name)}</option>`).join("")}</select></label><div class="pdf-study-text"><strong>صفحة ${page.number}</strong><p>${esc(page.text || "هذه الصفحة صورة ولا يمكن استخراج نصها حاليًا. افتح PDF للقراءة اليدوية.")}</p></div><div class="smart-plan-actions"><button class="primary" data-pdf-study-action="complete" ${page.text ? "" : "disabled"}>إكمال قراءة الصفحة</button><button class="soft-button" data-book-action="open" data-book-id="${esc(selected.id)}">فتح الكتاب</button></div></section>`);
+  save(data);
 }
 
 function buildSmartDailyPlan(subjectId = "general") {
@@ -569,6 +611,52 @@ function buildSmartDailyPlan(subjectId = "general") {
 
 function smartPlanStageLabel(stage) {
   return { study: "دراسة الجزء", reading: "إنهاء القراءة", questions: "حل الأسئلة", quiz: "اختبار اليوم", result: "النتيجة" }[stage] || stage;
+}
+
+function renderStudyQuiz(subjectId, scope) {
+  const engine = smartStudyEngine(subjectId);
+  const questions = engine.getQuestions(scope).slice(0, scope === "daily" ? 10 : 20);
+  const root = $("#smart-plan-content");
+  if (!root) return;
+  if (!questions.length) {
+    root.insertAdjacentHTML("beforeend", `<section class="panel smart-quiz"><h3>لا توجد أسئلة محلية</h3><p class="english-muted">أضف أسئلة الكتاب أو التمارين أو بنك الأسئلة الوزارية إلى مصدر المادة أولًا.</p></section>`);
+    return;
+  }
+  root.insertAdjacentHTML("beforeend", `<form class="panel smart-quiz" data-study-quiz="${esc(subjectId)}|${esc(scope)}"><div class="section-head"><h3>${scope === "chapter" ? "اختبار نهاية الفصل" : scope === "weekly" ? "الاختبار الأسبوعي" : "الاختبار اليومي"}</h3><span>${questions.length} سؤال</span></div>${questions.map((question, index) => `<fieldset><legend>${index + 1}. ${esc(question.text || question.question || "سؤال من المصدر")}</legend>${(question.options || []).map((option, optionIndex) => `<label class="quiz-option"><input type="radio" name="q-${index}" value="${optionIndex}" required>${esc(option)}</label>`).join("")}</fieldset>`).join("")}<button class="primary" type="submit">حفظ النتيجة</button></form>`);
+}
+
+function questionAnswer(question) {
+  if (Number.isInteger(question.answer)) return question.answer;
+  if (Number.isInteger(question.correctAnswer)) return question.correctAnswer;
+  const answer = question.answer || question.correctAnswer;
+  return Array.isArray(question.options) ? question.options.indexOf(answer) : -1;
+}
+
+function saveStudyQuiz(form) {
+  const [subjectId, scope] = form.dataset.studyQuiz.split("|");
+  const engine = smartStudyEngine(subjectId);
+  const questions = engine.getQuestions(scope).slice(0, scope === "daily" ? 10 : 20);
+  let correct = 0;
+  const errorsByTopic = {};
+  const questionResults = questions.map((question, index) => {
+    const selected = Number(new FormData(form).get(`q-${index}`));
+    const isCorrect = selected === questionAnswer(question);
+    if (isCorrect) correct++;
+    if (!isCorrect) {
+      const topic = question.topic || question.lessonTitle || question.unitTitle || "موضوع غير محدد";
+      errorsByTopic[topic] = (errorsByTopic[topic] || 0) + 1;
+    }
+    return { questionId: question.id || `${scope}-${index}`, correct: isCorrect, source: question.source || (question.ministry ? "ministry" : "book") };
+  });
+  const wrong = questions.length - correct;
+  const weakTopics = Object.keys(errorsByTopic);
+  const result = engine.recordQuizResult({ scope, score: Math.round(correct / questions.length * 100), correct, wrong, weakTopics, errorsByTopic, questionResults });
+  const plan = smartPlanState(subjectId);
+  plan.lastResult = result;
+  plan.lastRequestedExam = `${scope}-quiz`;
+  save(data);
+  renderSmartStudyPlan();
+  alert(`النتيجة: ${result.score}%\n${weakTopics.length ? `تحتاج مراجعة: ${weakTopics.join("، ")}` : "أداء جيد"}`);
 }
 
 function renderSmartStudyPlan() {
@@ -589,6 +677,10 @@ function renderSmartStudyPlan() {
     root.innerHTML = markup.replaceAll("<b>English</b>", `<b>${esc(selectedSubject?.name || "غير محدد")}</b>`).replaceAll("content/english/data.json", "محتوى المادة المنظم");
     const options = data.subjects.map(subject => `<option value="${subject.id}" ${subject.id === data.smartPlanSubjectId ? "selected" : ""}>${esc(subject.name)}</option>`).join("");
     root.insertAdjacentHTML("afterbegin", `<label class="smart-subject-picker">المادة<select data-smart-subject><option value="">اختر مادة</option>${options}</select></label>`);
+    renderPdfStudyPanel(selectedSubjectId);
+    const latestExam = [...(plan.results || [])].reverse().find(result => result.scope === "chapter");
+    if (latestExam) root.insertAdjacentHTML("beforeend", `<section class="panel smart-result"><h3>نتيجة اختبار الفصل</h3><strong>${latestExam.score}% · ${latestExam.score >= 80 ? "ناجح" : "يحتاج مراجعة"}</strong><p class="english-muted">نقاط القوة: ${esc((latestExam.strengths || []).join("، ") || "لا توجد بيانات بعد")}</p><p class="english-muted">نقاط الضعف: ${esc((latestExam.weakTopics || []).join("، ") || "لا توجد")}</p>${Object.entries(latestExam.errorsByTopic || {}).map(([topic, count]) => `<p class="english-muted">${esc(topic)}: ${count} خطأ</p>`).join("")}</section>`);
+    if (plan.reviewPlan?.status === "open") root.insertAdjacentHTML("beforeend", `<section class="panel smart-result"><h3>خطة المراجعة</h3><p class="english-muted">الموضوعات: ${esc((plan.reviewPlan.topics || []).join("، ") || "الموضوعات التي أخطأت بها")}</p><button class="soft-button" data-smart-action="complete-reviews">إكمال المراجعة والسماح بإعادة الاختبار</button></section>`);
   }
   if (home) home.innerHTML = `<p class="english-muted">${lesson ? `${esc(selectedSubject?.name || "غير محدد")} · ${esc(content.unitTitle || content.title)} · ${smartPlanStageLabel(plan.stage)}` : "لا توجد خطة منظمة بعد."}</p><button class="soft-button" data-view="smart-plan">فتح خطة الدراسة</button>`;
 }
@@ -894,6 +986,22 @@ function renderHeroProgress() {
 // =========================
 
 const staticContent = {};
+const contentKeyForSubject = subject => ({
+  "الرياضيات": "mathematics", "الفيزياء": "physics", "الكيمياء": "chemistry", "الأحياء": "biology",
+  "العربي": "arabic", "الإنكليزي": "english", "الإنجليزية": "english", "الإسلامية": "islamic"
+}[subject?.name] || subject?.contentId || subject?.id);
+async function loadStaticContent() {
+  await Promise.all(data.subjects.map(async subject => {
+    const key = contentKeyForSubject(subject);
+    if (!key || staticContent[subject.id]) return;
+    try {
+      const response = await fetch(`../content/${encodeURIComponent(key)}/data.json`, { cache: "no-store" });
+      if (response.ok) staticContent[subject.id] = await response.json();
+    } catch (error) {
+      console.warn(`تعذر تحميل محتوى ${key}`, error);
+    }
+  }));
+}
 const subjectEngine = subjectId => new SubjectStudyEngine({
   subjectId,
   content: staticContent[subjectId] || { subjectId, units: [], questions: { book: [], exercises: [], ministry: [] } },
@@ -1482,6 +1590,11 @@ document.addEventListener("click", e => {
       openPdfBook(bookId).catch(error => alert(error.message || "تعذر فتح الكتاب.")).finally(() => { b.disabled = false; });
       return;
     }
+    if (b.dataset.bookAction === "analyze") {
+      b.disabled = true;
+      extractPdfBook(b.dataset.bookId).catch(error => alert(error.message || "تعذر تحليل الكتاب.")).finally(() => { b.disabled = false; });
+      return;
+    }
     if (b.dataset.bookAction === "delete") {
       const book = books.find(item => item.id === bookId);
       if (!book || !confirm(`هل تريد حذف «${book.name}»؟`)) return;
@@ -1520,15 +1633,43 @@ document.addEventListener("click", e => {
     const smartEngine = smartStudyEngine(selectedSubjectId);
     if (b.dataset.smartAction === "complete-study") smartEngine.completeStudyStage("study");
     if (b.dataset.smartAction === "advance-stage") smartEngine.completeStudyStage(plan.stage);
+    if (b.dataset.smartAction === "complete-reviews" && plan.reviewPlan?.status === "open") {
+      plan.reviewPlan.status = "completed";
+      plan.reviewPlan.completedAt = new Date().toISOString();
+      plan.reviewTasks?.forEach(task => { task.status = "completed"; });
+    }
     if (["daily-quiz", "weekly-quiz", "chapter-quiz"].includes(b.dataset.smartAction)) {
-      plan.lastRequestedExam = b.dataset.smartAction;
-      plan.stage = "quiz";
-      plan.availableQuestions = smartEngine.getQuestions(b.dataset.smartAction.replace("-quiz", ""));
-      if (!plan.availableQuestions.length) plan.examMessage = "لا توجد أسئلة منظمة مضافة لهذا الاختبار بعد.";
+      const scope = b.dataset.smartAction.replace("-quiz", "");
+      const progress = subjectEngine(selectedSubjectId).getProgress();
+      if (scope === "chapter" && progress.status === "needs-review" && plan.reviewPlan?.status !== "completed") {
+        plan.examMessage = "أكمل خطة المراجعة أولًا ثم أعد اختبار الفصل.";
+      } else if (scope === "chapter" && !["needs-chapter-exam", "needs-review"].includes(progress.status)) {
+        plan.examMessage = "أكمل محتوى الفصل والخطة اليومية أولًا.";
+      } else {
+        plan.lastRequestedExam = b.dataset.smartAction;
+        plan.stage = "quiz";
+        plan.availableQuestions = smartEngine.getQuestions(scope);
+        plan.examMessage = plan.availableQuestions.length ? "" : "لا توجد أسئلة منظمة مضافة لهذا الاختبار بعد.";
+      }
     }
     if (b.dataset.smartAction === "reviews") plan.reviewOpenedAt = new Date().toISOString();
     save(data);
     renderSmartStudyPlan();
+    if (["daily-quiz", "weekly-quiz", "chapter-quiz"].includes(b.dataset.smartAction) && plan.availableQuestions?.length) renderStudyQuiz(selectedSubjectId, b.dataset.smartAction.replace("-quiz", ""));
+    return;
+  }
+
+  if (b.dataset.pdfStudyAction === "complete") {
+    const selectedSubjectId = data.smartPlanSubjectId || data.subjects[0]?.id;
+    const plan = smartPlanState(selectedSubjectId);
+    const book = books.find(item => item.id === plan.sourceBookId);
+    if (book?.pages?.[plan.pdfPageIndex]) {
+      book.pages[plan.pdfPageIndex].completedAt = new Date().toISOString();
+      plan.pdfPageIndex += 1;
+      plan.pdfReadingCompleted = plan.pdfPageIndex >= book.pages.length;
+      save(data);
+      renderSmartStudyPlan();
+    }
     return;
   }
 
@@ -1884,6 +2025,16 @@ if (b.dataset.completeChapter) {
 // =========================
 
 document.addEventListener("change", e => {
+
+  if (e.target.matches("[data-pdf-book]")) {
+    const subjectId = data.smartPlanSubjectId || data.subjects[0]?.id;
+    const plan = smartPlanState(subjectId);
+    plan.sourceBookId = e.target.value;
+    plan.pdfPageIndex = 0;
+    save(data);
+    renderSmartStudyPlan();
+    return;
+  }
 
   if (e.target.matches("[data-smart-subject]")) {
     data.smartPlanSubjectId = e.target.value;
@@ -2341,6 +2492,12 @@ $("#weekly-form").onsubmit = e => {
 };
 
 document.addEventListener("submit", e => {
+  const quiz = e.target.closest("[data-study-quiz]");
+  if (quiz) {
+    e.preventDefault();
+    saveStudyQuiz(quiz);
+    return;
+  }
   const form = e.target.closest("[data-weekly-task-form]");
   if (!form) return;
   e.preventDefault();
@@ -2508,6 +2665,6 @@ $("#today-date").textContent =
 // التشغيل
 // =========================
 
-render();
+loadStaticContent().finally(() => render());
 loadBooks();
 window.addEventListener("beforeunload", closePdfViewer);

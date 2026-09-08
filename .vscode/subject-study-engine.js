@@ -9,6 +9,9 @@ export class SubjectStudyEngine {
     this.state.dailyTasks ??= [];
     this.state.exams ??= [];
     this.state.reviewTasks ??= [];
+    this.state.smartPlan ??= {};
+    this.state.smartPlan.passThreshold ??= 80;
+    this.state.smartPlan.results ??= [];
   }
 
   getUnits() {
@@ -55,13 +58,27 @@ export class SubjectStudyEngine {
     const examProgress = exams.length ? Math.round(exams.reduce((sum, exam) => sum + (exam.score || 0), 0) / exams.length) : 0;
     const masteryItems = Object.values(this.state.items);
     const mastery = masteryItems.length ? Math.round(masteryItems.filter(item => item.mastered).length / masteryItems.length * 100) : 0;
+    const chapterExam = [...this.state.smartPlan.results].reverse().find(result => result.scope === "chapter");
     return {
       lectures: lessons.length ? Math.round(completedLessons / lessons.length * 100) : 0,
       book: bookProgress,
       tasks: tasks.length ? Math.round(completedTasks / tasks.length * 100) : 0,
       exams: examProgress,
-      mastery
+      mastery,
+      chapterExam: chapterExam?.score || 0,
+      status: this.getStatus()
     };
+  }
+
+  getStatus() {
+    const lessons = this.getLessons();
+    const completedLessons = lessons.length && lessons.every(lesson => this.getLessonState(lesson.id).status === "completed");
+    const latestExam = [...this.state.smartPlan.results].reverse().find(result => result.scope === "chapter");
+    if (latestExam && Number(latestExam.score || 0) >= Number(this.state.smartPlan.passThreshold || 80)) return "mastered";
+    if (latestExam) return "needs-review";
+    if (completedLessons) return "needs-chapter-exam";
+    if (lessons.some(lesson => this.getLessonState(lesson.id).status !== "new")) return "studying";
+    return "not-started";
   }
 
   getNextItem() {
@@ -95,10 +112,10 @@ export class SubjectStudyEngine {
   }
 
   recordExam(exam) {
-    const record = { id: exam.id || crypto.randomUUID(), createdAt: new Date().toISOString(), ...exam };
+    const record = { id: exam.id || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString(), ...exam };
     this.state.exams.push(record);
     const weakTopics = exam.weakTopics || [];
-    weakTopics.forEach(topic => this.state.reviewTasks.push({ id: crypto.randomUUID(), topic, sourceExamId: record.id, status: "open", createdAt: record.createdAt }));
+    weakTopics.forEach(topic => this.state.reviewTasks.push({ id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`, topic, sourceExamId: record.id, status: "open", createdAt: record.createdAt }));
     this.saveState(this.state);
     return record;
   }

@@ -1,8 +1,8 @@
-﻿const key="sayi-v1";
+const key="sayi-v1";
 const booksDbName="sayi-books-v1";
 const booksStoreName="books";
 const bookFilesStoreName="files";
-const emptySubjectState=()=>({lessons:{},items:{},dailyTasks:[],exams:[],reviewTasks:[]});
+const emptySubjectState=()=>({lessons:{},items:{},dailyTasks:[],exams:[],reviewTasks:[],smartPlan:{dailyPlans:[],results:[],reviewTasks:[],passThreshold:80}});
 const seed={studyLog:[],subjects:[{id:"s1",name:"الرياضيات",color:"purple",chapters:[{id:"c1",name:"الفصل الأول: المشتقات",lessons:[{id:"l1",name:"مقدمة في المشتقات",done:true,today:true},{id:"l2",name:"قواعد الاشتقاق",done:false,today:true}]},{id:"c2",name:"الفصل الثاني: التكامل",lessons:[{id:"l3",name:"التكامل غير المحدد",done:false,today:false}]}]}],tasks:[],legacyTasks:[],subjectState:{}};
 export const load=()=>{
 	try{
@@ -38,6 +38,16 @@ export const addBook=async(book,file)=>{
 		const transaction=db.transaction([booksStoreName,bookFilesStoreName],"readwrite");
 		transaction.objectStore(booksStoreName).put(book);
 		transaction.objectStore(bookFilesStoreName).put({id:book.id,file});
+		transaction.oncomplete=resolve;
+		transaction.onerror=()=>reject(transaction.error);
+	});}
+	finally{db.close()}
+};
+export const updateBook=async book=>{
+	const db=await openBooksDb();
+	try{await new Promise((resolve,reject)=>{
+		const transaction=db.transaction(booksStoreName,"readwrite");
+		transaction.objectStore(booksStoreName).put(book);
 		transaction.oncomplete=resolve;
 		transaction.onerror=()=>reject(transaction.error);
 	});}

@@ -8,7 +8,7 @@
 1. افتح المجلد المشروع.
 2. انقر نقرًا مزدوجًا على ملف start-local.bat
 3. افتح المتصفح على:
-   http://localhost:4173/index.html
+   http://localhost:4173/.vscode/index.html
 
 ### أو عبر موجه الأوامر
 ```bat
@@ -16,7 +16,7 @@ cd /path/to/Sayi
 py -m http.server 4173
 ```
 ثم افتح:
-http://localhost:4173/index.html
+http://localhost:4173/.vscode/index.html
 
 ## ملاحظات
 - لا حاجة إلى npm أو Vite.
@@ -44,4 +44,4 @@ saai-logo.svg
 content/
 ```
 
-يجب أن يكون رابط النشر موجهاً إلى `index.html` أو إلى جذر المشروع. تخزين الكتب في IndexedDB خاص بكل متصفح وجهاز، لذلك لا تنتقل الكتب المضافة محليًا إلى جهاز آخر.
+يجب أن يكون رابط النشر موجهاً إلى `.vscode/index.html` أو إلى صفحة تنقل إليها. تخزين الكتب في IndexedDB خاص بكل متصفح وجهاز، لذلك لا تنتقل الكتب المضافة محليًا إلى جهاز آخر.
