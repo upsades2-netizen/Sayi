@@ -24,6 +24,25 @@ let data = load();
 let books = [];
 let activeBookUrl = null;
 let activeView = "home";
+let isRefreshingApp = false;
+let isRenderingApp = false;
+
+const refreshApp = () => {
+  if (isRefreshingApp || isRenderingApp) return;
+  isRefreshingApp = true;
+  const scrollY = window.scrollY;
+  try {
+    render();
+    showView(activeView);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: "auto" });
+    });
+  } finally {
+    isRefreshingApp = false;
+  }
+};
+
+window.addEventListener("sayi-saved", refreshApp);
 
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ||
@@ -154,7 +173,6 @@ function normalize() {
     data.tasks = [];
     save(data);
   }
-  data.studyLog ??= [];
   data.subjectState ??= {};
   data.smartPlanSubjectId ??= "";
   const validDays = new Set(weekDays.map(([key]) => key));
@@ -198,10 +216,6 @@ function normalize() {
           .map(task => ({ ...task, title: String(task.title || task.name).trim(), done: !!task.done }))
       }));
   }
-  data.studyLog = data.studyLog
-    .filter(e => e && e.date)
-    .map(e => ({ id: e.id || uid(), subject: e.subject || "", minutes: Math.max(Number(e.minutes) || 0, 0), date: e.date }))
-    .filter(e => e.minutes > 0);
   data.studyPlan ??= { durationDays: 0, startedAt: null, activeMode: "natural", activity: {} };
   data.studyPlan.activity ??= {};
   if (data.studyPlan.activeMode === "basic") data.studyPlan.activeMode = "natural";
@@ -247,20 +261,11 @@ const todayKey = () =>
 const dateKey = d => d.toISOString().slice(0, 10);
 
 // =========================
-// وقت الدراسة الحقيقي
+// نشاط اليوم
 // =========================
 
-const minutesFor = date =>
-  data.studyLog.reduce(
-    (sum, e) => sum + (e.date === date ? e.minutes : 0),
-    0
-  );
-
-const todayStudyMinutes = () => minutesFor(todayKey());
-
 const hasActivity = date =>
-  (Number(data.studyPlan.activity[date]) || 0) > 0 ||
-  minutesFor(date) > 0;
+  (Number(data.studyPlan.activity[date]) || 0) > 0;
 
 // سلسلة الأيام: تحسب الأيام المتتالية من اليوم (أو من أمس
 // إذا لم يبدأ الطالب اليوم بعد، حتى لا تنكسر السلسلة قبل انتهاء اليوم)
@@ -457,7 +462,6 @@ const allCompletedToday = () =>
 
 const persist = () => {
   save(data);
-  render();
 };
 
 // =========================
@@ -940,9 +944,6 @@ function renderOptions() {
   const taskSubject = $("#task-subject");
   if (taskSubject) taskSubject.innerHTML = options;
 
-  const studytimeSubject = $("#studytime-subject");
-  if (studytimeSubject) studytimeSubject.innerHTML = options;
-
   const weeklySubject = $("#weekly-subject");
   if (weeklySubject) {
     weeklySubject.innerHTML = '<option value="">اختر مادة من موادك</option>' +
@@ -1192,30 +1193,32 @@ function englishReviewMistakes() {
 // =========================
 
 function render() {
-  normalize();
+  isRenderingApp = true;
+  try {
+    normalize();
 
-  renderHeroProgress();
+    renderHeroProgress();
 
-  $("#study-time").textContent =
-    `${arabicNumber(todayStudyMinutes())} د`;
+    const streak = studyStreak();
+    $("#streak-count").textContent =
+      streak === 1
+        ? "يوم واحد"
+        : streak === 2
+          ? "يومان"
+          : `${arabicNumber(streak)} أيام`;
 
-  const streak = studyStreak();
-  $("#streak-count").textContent =
-    streak === 1
-      ? "يوم واحد"
-      : streak === 2
-        ? "يومان"
-        : `${arabicNumber(streak)} أيام`;
+    renderHome();
+    renderSubjects();
+    renderWeekly();
+    renderStats();
+    renderOptions();
+    renderSmartStudyPlan();
+    renderBooks();
 
-  renderHome();
-  renderSubjects();
-  renderWeekly();
-  renderStats();
-  renderOptions();
-  renderSmartStudyPlan();
-  renderBooks();
-
-  showView(activeView);
+    showView(activeView);
+  } finally {
+    isRenderingApp = false;
+  }
 }
 
 // =========================
@@ -1558,11 +1561,6 @@ function openModal(name) {
     form.querySelector('[name="day"]').value = "saturday";
     form.querySelector('[name="id"]').value = "";
     $("#weekly-modal-title").textContent = "إضافة إلى الجدول";
-  }
-
-  if (name === "studytime") {
-    const dateInput = $("#studytime-form [name=date]");
-    if (dateInput && !dateInput.value) dateInput.value = todayKey();
   }
 
   $("#" + name + "-modal").showModal();
@@ -2508,35 +2506,6 @@ document.addEventListener("submit", e => {
   entry.tasks.push({ id: uid(), title, done: false });
   persist();
 });
-
-// =========================
-// نموذج تسجيل وقت الدراسة
-// =========================
-
-$("#studytime-form").onsubmit = e => {
-
-  e.preventDefault();
-
-  const f =
-    new FormData(e.target);
-
-  const minutes =
-    Math.max(+f.get("minutes") || 0, 1);
-
-  data.studyLog.unshift({
-    id: uid(),
-    subjectId: "",
-    subject: f.get("subject") || "",
-    minutes,
-    date: f.get("date") || todayKey()
-  });
-
-  e.target.reset();
-
-  $("#studytime-modal").close();
-
-  persist();
-};
 
 // =========================
 // نموذج الفصل

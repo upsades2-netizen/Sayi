@@ -3,10 +3,15 @@ const booksDbName="sayi-books-v1";
 const booksStoreName="books";
 const bookFilesStoreName="files";
 const emptySubjectState=()=>({lessons:{},items:{},dailyTasks:[],exams:[],reviewTasks:[],smartPlan:{dailyPlans:[],results:[],reviewTasks:[],passThreshold:80}});
-const seed={studyLog:[],subjects:[{id:"s1",name:"الرياضيات",color:"purple",chapters:[{id:"c1",name:"الفصل الأول: المشتقات",lessons:[{id:"l1",name:"مقدمة في المشتقات",done:true,today:true},{id:"l2",name:"قواعد الاشتقاق",done:false,today:true}]},{id:"c2",name:"الفصل الثاني: التكامل",lessons:[{id:"l3",name:"التكامل غير المحدد",done:false,today:false}]}]}],tasks:[],legacyTasks:[],subjectState:{}};
+const seed={subjects:[{id:"s1",name:"الرياضيات",color:"purple",chapters:[{id:"c1",name:"الفصل الأول: المشتقات",lessons:[{id:"l1",name:"مقدمة في المشتقات",done:true,today:true},{id:"l2",name:"قواعد الاشتقاق",done:false,today:true}]},{id:"c2",name:"الفصل الثاني: التكامل",lessons:[{id:"l3",name:"التكامل غير المحدد",done:false,today:false}]}]}],tasks:[],legacyTasks:[],subjectState:{}};
 export const load=()=>{
 	try{
 		const value=JSON.parse(localStorage.getItem(key))||structuredClone(seed);
+		if (value) {
+			delete value.studyLog;
+			delete value.studyTime;
+			delete value.studytime;
+		}
 		value.subjectState ??= {};
 		value.legacyTasks ??= [];
 		return value;
@@ -72,13 +77,17 @@ export const removeBook=async id=>{
 export const save=x=>{
 	try{
 		localStorage.setItem(key,JSON.stringify(x));
-		globalThis.dispatchEvent?.(new CustomEvent("sayi-saved"));
+		if (!globalThis.__sayiSuppressSaveEvent) {
+			globalThis.dispatchEvent?.(new CustomEvent("sayi-saved"));
+		}
 		return true;
 	}catch(error){
 		try{
 			const fallback=structuredClone(x);
 			localStorage.setItem(key,JSON.stringify(fallback));
-			globalThis.dispatchEvent?.(new CustomEvent("sayi-saved"));
+			if (!globalThis.__sayiSuppressSaveEvent) {
+				globalThis.dispatchEvent?.(new CustomEvent("sayi-saved"));
+			}
 			return true;
 		}catch(fallbackError){
 			console.error("Sayi could not save data",fallbackError);

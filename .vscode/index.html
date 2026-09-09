@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -48,16 +48,12 @@
                         <p id="hero-copy">كل مهمة صغيرة تنجزها اليوم تقرّبك من هدفك.</p>
                         <div class="hero-actions">
                             <button class="light-button" data-view="smart-plan">🧠 خطة الدراسة الذكية</button>
-                            <button class="light-button" data-open="studytime">⏱ سجّل وقت دراسة</button>
                             <button class="light-button" data-view="weekly">▤ الجدول الأسبوعي</button>
                         </div>
                     </div>
                     <div id="hero-progress" class="hero-progress"><span>0%</span><small>التقدم الكلي</small></div>
                 </section>
                 <section class="quick-grid">
-                    <article class="quick-card"><span>◷</span>
-                        <div><small>وقت الدراسة اليوم</small><strong id="study-time">٠ د</strong></div>
-                    </article>
                     <article class="quick-card"><span>✓</span>
                         <div><small>خطة اليوم</small><strong id="smart-plan-count">٠</strong></div>
                     </article>
@@ -212,24 +208,6 @@
             </label><button class="primary wide">حفظ المادة</button>
         </form>
     </dialog>
-    <dialog id="studytime-modal">
-        <form id="studytime-form">
-            <div class="modal-head">
-                <div>
-                    <p class="eyebrow dark">تسجيل يدوي</p>
-                    <h2>وقت دراسة</h2>
-                </div><button type="button" class="close" data-close-modal onclick="this.closest('dialog').close()" aria-label="إغلاق">×</button>
-            </div>
-            <div class="form-grid">
-                <label>المادة<select name="subject" id="studytime-subject">
-                        <option value="">بدون مادة محددة</option>
-                    </select></label>
-                <label>المدة (دقائق)<input name="minutes" type="number" min="1" max="1000" required placeholder="45"></label>
-            </div>
-            <label>التاريخ<input name="date" type="date" required></label>
-            <button class="primary wide">حفظ الوقت</button>
-        </form>
-    </dialog>
     <dialog id="weekly-modal">
         <form id="weekly-form">
             <div class="modal-head">
@@ -293,7 +271,7 @@
     });
 })();
 </script>
-    <script type="module" src="./app.js?v=22"></script>
+    <script type="module" src="./app.js?v=23"></script>
 </body>
 
 </html>
