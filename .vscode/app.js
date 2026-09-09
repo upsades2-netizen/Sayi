@@ -1017,6 +1017,15 @@ const smartStudyEngine = subjectId => new SmartStudyPlan({
   saveState: state => { data.subjectState[subjectId] = state; save(data); }
 });
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(error => {
+      console.warn("Service worker registration failed", error);
+    });
+  });
+}
+
 /* legacy English import removed */
 /*
 async function englishRenderCanvas(page, rotation, variant) {
@@ -1490,7 +1499,7 @@ function openDetail(id) {
                 ${l.done ? "checked" : ""}
               >
 
-              <div>
+              <div class="lesson-card-body">
                 <strong>${esc(l.name)}</strong>
 
                 ${
