@@ -2661,3 +2661,4 @@ $("#today-date").textContent =
 loadStaticContent().finally(() => render());
 loadBooks();
 window.addEventListener("beforeunload", closePdfViewer);
+registerServiceWorker();
