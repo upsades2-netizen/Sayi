@@ -6,17 +6,37 @@ export class SmartStudyPlan {
     this.state = state;
     this.saveState = saveState;
     this.state.smartPlan ??= {};
-    this.state.smartPlan.daily ??= { date: null, stage: "study", status: "open" };
+    this.state.smartPlan.daily ??= { date: null, stage: "study", status: "open", tasks: [] };
     this.state.smartPlan.weekly ??= { week: null, status: "locked" };
     this.state.smartPlan.results ??= [];
     this.state.smartPlan.reviewTasks ??= [];
     this.state.smartPlan.dailyPlans ??= [];
     this.state.smartPlan.passThreshold ??= 80;
+    this.state.smartPlan.topicState ??= {};
   }
 
   getLessons() {
+    if (Array.isArray(this.chapters) && this.chapters.length) {
+      return this.chapters.flatMap(chapter =>
+        (chapter.lessons || []).map(lesson => ({
+          ...lesson,
+          chapterId: chapter.id,
+          chapterTitle: chapter.title || chapter.name,
+          unitId: chapter.id,
+          unitTitle: chapter.title || chapter.name,
+          sourceType: "book"
+        }))
+      );
+    }
     return (this.content.units || []).flatMap(unit =>
-      (unit.lessons || []).map(lesson => ({ ...lesson, unitId: unit.id, unitTitle: unit.title }))
+      (unit.lessons || []).map(lesson => ({
+        ...lesson,
+        chapterId: unit.id,
+        chapterTitle: unit.title || unit.name,
+        unitId: unit.id,
+        unitTitle: unit.title || unit.name,
+        sourceType: "book"
+      }))
     );
   }
 
@@ -27,35 +47,181 @@ export class SmartStudyPlan {
   getQuestionsForLesson(lessonId, unitId) {
     const questions = this.content.questions || {};
     return [...(questions.ministry || []), ...(questions.book || []), ...(questions.exercises || [])]
-      .filter(question => question.lessonId === lessonId || question.unitId === unitId);
+      .filter(question => question.lessonId === lessonId || question.unitId === unitId || question.topicId === lessonId);
+  }
+
+  getQuestionsForTopic(topicId, chapterId) {
+    const questions = this.content.questions || {};
+    const all = [...(questions.ministry || []), ...(questions.book || []), ...(questions.exercises || [])];
+    return all.filter(question =>
+      question.topicId === topicId ||
+      question.lessonId === topicId ||
+      question.chapterId === chapterId ||
+      (question.unitId === chapterId && !question.lessonId)
+    );
+  }
+
+  getSourceCatalog() {
+    if (Array.isArray(this.chapters) && this.chapters.length) {
+      return this.chapters.map((chapter, chapterIndex) => ({
+        id: chapter.id || `chapter-${chapterIndex}`,
+        title: chapter.title || chapter.name || `الفصل ${chapterIndex + 1}`,
+        chapterIndex,
+        topics: (chapter.lessons || []).map((lesson, lessonIndex) => ({
+          id: lesson.id || `${chapter.id || chapterIndex}-lesson-${lessonIndex}`,
+          title: lesson.title || lesson.name || `موضوع ${lessonIndex + 1}`,
+          chapterId: chapter.id || `chapter-${chapterIndex}`,
+          chapterTitle: chapter.title || chapter.name || `الفصل ${chapterIndex + 1}`,
+          pages: lesson.pages || chapter.pages || { from: 1, to: 1 },
+          sourceType: this.getQuestionSource(lesson) === "ministry" ? "ministry" : "book",
+          description: lesson.summary || lesson.description || lesson.title || lesson.name,
+          difficulty: lesson.difficulty || "medium",
+          questions: this.getQuestionsForLesson(lesson.id || `${chapter.id || chapterIndex}-lesson-${lessonIndex}`, chapter.id || `chapter-${chapterIndex}`)
+        }))
+      }));
+    }
+
+    return (this.content.units || []).map((unit, unitIndex) => ({
+      id: unit.id || `unit-${unitIndex}`,
+      title: unit.title || unit.name || `الفصل ${unitIndex + 1}`,
+      chapterIndex: unitIndex,
+      topics: (unit.lessons || []).map((lesson, lessonIndex) => ({
+        id: lesson.id || `${unit.id || unitIndex}-lesson-${lessonIndex}`,
+        title: lesson.title || lesson.name || `موضوع ${lessonIndex + 1}`,
+        chapterId: unit.id || `unit-${unitIndex}`,
+        chapterTitle: unit.title || unit.name || `الفصل ${unitIndex + 1}`,
+        pages: lesson.pages || unit.pages || { from: 1, to: 1 },
+        sourceType: "book",
+        description: lesson.summary || lesson.description || lesson.title || lesson.name,
+        difficulty: lesson.difficulty || "medium",
+        questions: this.getQuestionsForLesson(lesson.id || `${unit.id || unitIndex}-lesson-${lessonIndex}`, unit.id || `unit-${unitIndex}`)
+      }))
+    }));
+  }
+
+  hasSourceGrounding() {
+    const allQuestions = this.content.questions || {};
+    const hasBookPages = Array.isArray(this.chapters) && this.chapters.some(chapter => (chapter.lessons || []).length)
+      || Array.isArray(this.content.units) && this.content.units.some(unit => (unit.lessons || []).length);
+    return Boolean(hasBookPages || (allQuestions.ministry || []).length || (allQuestions.book || []).length || (allQuestions.exercises || []).length);
+  }
+
+  getCurrentTopic() {
+    const chapters = this.getSourceCatalog();
+    for (const chapter of chapters) {
+      for (const topic of chapter.topics) {
+        const topicState = this.state.lessons?.[topic.id] || this.state.smartPlan.topicState?.[topic.id] || {};
+        if (!topicState.completedAt && !topicState.completed) {
+          return { ...topic, chapterTitle: chapter.title };
+        }
+      }
+    }
+    const fallback = chapters.flatMap(chapter => chapter.topics.map(topic => ({ ...topic, chapterTitle: chapter.title })));
+    return fallback[0] || null;
+  }
+
+  createTopicTasks(topic) {
+    if (!topic) return [];
+    const relatedQuestions = (topic.questions || []).slice(0, 3);
+    const baseTasks = [
+      {
+        id: `${topic.id}-read`,
+        type: "reading",
+        title: `اقرأ تعريف ${topic.title} من الكتاب`,
+        sourceType: topic.sourceType || "book",
+        chapterTitle: topic.chapterTitle,
+        topicId: topic.id,
+        topicTitle: topic.title,
+        pages: topic.pages || { from: 1, to: 1 },
+        status: "open"
+      },
+      {
+        id: `${topic.id}-understand`,
+        type: "understand",
+        title: `افهم الفكرة الأساسية في ${topic.title} وراجع المثال`,
+        sourceType: topic.sourceType || "book",
+        chapterTitle: topic.chapterTitle,
+        topicId: topic.id,
+        topicTitle: topic.title,
+        pages: topic.pages || { from: 1, to: 1 },
+        status: "open"
+      },
+      {
+        id: `${topic.id}-review`,
+        type: "review",
+        title: `راجع النقاط المهمة في ${topic.title} واحتفظ بالقانون أو التعريف`,
+        sourceType: topic.sourceType || "book",
+        chapterTitle: topic.chapterTitle,
+        topicId: topic.id,
+        topicTitle: topic.title,
+        pages: topic.pages || { from: 1, to: 1 },
+        status: "open"
+      }
+    ];
+
+    if (relatedQuestions.length) {
+      baseTasks.push({
+        id: `${topic.id}-questions`,
+        type: "questions",
+        title: `حل ${relatedQuestions.length} سؤالاً مرتبطاً بـ ${topic.title}`,
+        sourceType: relatedQuestions[0].source || "official",
+        chapterTitle: topic.chapterTitle,
+        topicId: topic.id,
+        topicTitle: topic.title,
+        pages: topic.pages || { from: 1, to: 1 },
+        relatedQuestionIds: relatedQuestions.map(item => item.id || item.questionId || `${topic.id}-${Math.random()}`),
+        status: "open"
+      });
+    }
+
+    return baseTasks;
   }
 
   buildDailyPlan(date = new Date().toLocaleDateString("en-CA")) {
-    const lessons = this.getLessons();
-    const previous = this.state.smartPlan.daily || {};
-    const current = lessons.find(lesson => !this.state.lessons?.[lesson.id]?.completedAt) || null;
-    const existing = this.state.smartPlan.dailyPlans.find(plan => plan.date === date);
+    const topic = this.getCurrentTopic();
+    const existing = this.state.smartPlan.dailyPlans.find(plan => plan.date === date && plan.subjectId === this.subjectId);
+    const tasks = topic ? this.createTopicTasks(topic) : [];
     const daily = existing || {
       id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
       date,
       subjectId: this.subjectId,
-      lessonId: current?.id || null,
-      unitId: current?.unitId || null,
-      stage: previous.date === date ? previous.stage || "study" : "study",
-      status: current ? "open" : "empty",
-      tasks: current ? [
-        { id: `${current.id}-reading`, type: "reading", title: `قراءة ${current.title}`, minutes: 30, status: "open" },
-        { id: `${current.id}-questions`, type: "questions", title: "حل أسئلة الموضوع", minutes: 15, status: "open" },
-        { id: `${current.id}-quiz`, type: "quiz", title: "اختبار يومي قصير", minutes: 10, status: "locked" }
-      ] : []
+      topicId: topic?.id || null,
+      chapterId: topic?.chapterId || null,
+      stage: "study",
+      status: topic ? "open" : "empty",
+      tasks
     };
+
+    daily.date = date;
+    daily.subjectId = this.subjectId;
+    daily.topicId = topic?.id || daily.topicId || null;
+    daily.chapterId = topic?.chapterId || daily.chapterId || null;
+    daily.stage = daily.stage || "study";
+    daily.status = topic ? "open" : "empty";
+    daily.tasks = daily.tasks?.length ? daily.tasks : tasks;
+
+    this.state.smartPlan.daily = { ...this.state.smartPlan.daily, ...daily, subjectId: this.subjectId };
     if (!existing) this.state.smartPlan.dailyPlans.push(daily);
-    this.state.smartPlan.daily = {
-      ...daily,
-      subjectId: this.subjectId
-    };
     this.saveState(this.state);
     return this.state.smartPlan.daily;
+  }
+
+  getSmartSnapshot() {
+    const topic = this.getCurrentTopic();
+    const daily = this.buildDailyPlan();
+    const topicQuestions = topic ? this.getQuestionsForTopic(topic.id, topic.chapterId) : [];
+    return {
+      subjectId: this.subjectId,
+      topic,
+      chapterTitle: topic?.chapterTitle || "غير محدد",
+      chapter: this.getSourceCatalog().find(chapter => chapter.id === (topic?.chapterId || "")) || null,
+      tasks: daily.tasks || [],
+      questions: topicQuestions,
+      hasSourceGrounding: this.hasSourceGrounding(),
+      sourceSummary: topic ? `${topic.chapterTitle} · ${topic.title} · صفحات ${topic.pages?.from || 1}–${topic.pages?.to || 1}` : "لا يوجد مصدر مهيأ بعد",
+      status: daily.status,
+      stage: daily.stage
+    };
   }
 
   completeStudyStage(stage, date = new Date().toLocaleDateString("en-CA")) {
@@ -65,22 +231,48 @@ export class SmartStudyPlan {
     daily.status = daily.stage === "complete" ? "completed" : "open";
     const task = daily.tasks?.find(item => item.type === stage);
     if (task) task.status = "completed";
-    if (stage === "questions") daily.tasks?.find(item => item.type === "quiz") && (daily.tasks.find(item => item.type === "quiz").status = "open");
+    if (stage === "questions") {
+      const quizTask = daily.tasks?.find(item => item.type === "quiz");
+      if (quizTask) quizTask.status = "open";
+    }
     daily[`${stage}CompletedAt`] = new Date().toISOString();
+    if (this.state.lessons && daily.topicId) {
+      this.state.lessons[daily.topicId] ??= {};
+      this.state.lessons[daily.topicId].completedAt = daily[`${stage}CompletedAt`];
+      this.state.lessons[daily.topicId].status = "completed";
+    }
     this.saveState(this.state);
     return daily;
   }
 
+  markTaskComplete(taskId) {
+    const daily = this.state.smartPlan.daily || this.buildDailyPlan();
+    const task = daily.tasks?.find(item => item.id === taskId);
+    if (task) task.status = "completed";
+    const topicState = this.state.lessons?.[daily.topicId] || this.state.smartPlan.topicState?.[daily.topicId] || {};
+    topicState.completed = true;
+    topicState.completedAt = new Date().toISOString();
+    if (daily.topicId) {
+      this.state.lessons ??= {};
+      this.state.lessons[daily.topicId] = topicState;
+      this.state.smartPlan.topicState ??= {};
+      this.state.smartPlan.topicState[daily.topicId] = topicState;
+    }
+    this.saveState(this.state);
+    return task || null;
+  }
+
   getQuestions(scope = "daily") {
     const questions = this.content.questions || {};
+    const all = [...(questions.ministry || []), ...(questions.book || []), ...(questions.exercises || [])];
     const daily = this.state.smartPlan.daily || {};
-    if (scope === "chapter") return [...(questions.ministry || []), ...(questions.book || []), ...(questions.exercises || [])];
+    if (scope === "chapter") return all;
     if (scope === "weekly") {
-      const lessonIds = new Set(this.state.smartPlan.dailyPlans.filter(plan => plan.status === "completed").map(plan => plan.lessonId));
-      return [...(questions.ministry || []), ...(questions.book || []), ...(questions.exercises || [])]
-        .filter(question => lessonIds.has(question.lessonId) || question.unitId === daily.unitId);
+      const completedTopicIds = new Set((this.state.smartPlan.dailyPlans || []).filter(plan => plan.status === "completed").map(plan => plan.topicId).filter(Boolean));
+      return all.filter(question => completedTopicIds.has(question.topicId) || question.chapterId === daily.chapterId || question.lessonId === daily.topicId || question.unitId === daily.chapterId);
     }
-    return this.getQuestionsForLesson(daily.lessonId, daily.unitId).slice(0, 10);
+    if (daily.topicId) return this.getQuestionsForTopic(daily.topicId, daily.chapterId).slice(0, 10);
+    return all.slice(0, 10);
   }
 
   recordQuizResult({ scope = "daily", score = 0, correct = 0, wrong = 0, weakTopics = [], errorsByTopic = {}, questionResults = [] } = {}) {
@@ -122,6 +314,6 @@ export class SmartStudyPlan {
   }
 
   getReviewTasks() {
-    return this.state.smartPlan.reviewTasks.filter(task => task.status !== "completed");
+    return (this.state.smartPlan.reviewTasks || []).filter(task => task.status !== "completed");
   }
 }

@@ -1624,6 +1624,21 @@ document.addEventListener("click", e => {
     return;
   }
 
+  if (b.dataset.smartTaskComplete) {
+    const selectedSubject = data.subjects.find(subject => subject.id === data.smartPlanSubjectId) || data.subjects[0] || null;
+    const selectedSubjectId = selectedSubject?.id || "general";
+    const smartEngine = smartStudyEngine(selectedSubjectId);
+    const task = smartEngine.markTaskComplete(b.dataset.smartTaskComplete);
+    if (task) {
+      const plan = smartPlanState(selectedSubjectId);
+      plan.stage = "study";
+      plan.status = "open";
+    }
+    save(data);
+    renderSmartStudyPlan();
+    return;
+  }
+
   if (b.dataset.smartAction) {
     const selectedSubject = data.subjects.find(subject => subject.id === data.smartPlanSubjectId);
     const selectedSubjectId = selectedSubject?.id || "general";
